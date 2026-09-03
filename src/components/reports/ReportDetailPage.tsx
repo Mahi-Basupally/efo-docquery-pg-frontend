@@ -7,7 +7,7 @@ import ScheduleSidenav from '@/components/SideNav';
 import { ChevronDown, ChevronUp, ExternalLink, X } from 'lucide-react';
 import { reportsApi, Report } from '@/lib/api/reports';
 import type { Column, Section, SectionLine, SummaryData } from '@/lib/api/types';
-import type { F3XRawReportData } from '@/lib/api/f3x';
+import type { F3XReportData } from '@/lib/api/f3x';
 import F3XReport from '@/components/forms/f3x_rendering';
 
 // ============================================================================
@@ -44,13 +44,8 @@ export default function ReportDetailPage() {
   const repId = params.rep_id as string;
 
   const [report, setReport] = useState<Report | null>(null);
-  // Generic (non-F3X) report-summary state. Rendered via the legacy inline
-  // section renderers below - unchanged behavior, still used by F1 and every
-  // other form type that hasn't been split out yet.
   const [summary, setSummary] = useState<SummaryData | null>(null);
-  // F3X-only report data/rendering split - see src/lib/api/f3x.ts and
-  // src/components/forms/f3x_rendering.tsx.
-  const [f3xData, setF3xData] = useState<F3XRawReportData | null>(null);
+  const [f3xData, setF3xData] = useState<F3XReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -72,17 +67,13 @@ export default function ReportDetailPage() {
         setReport(reportResponse.data);
 
         try {
-          // Both getReportById and getSummaryLines hit the same report-detail
-          // endpoint. formType is only known once this response arrives, so
-          // it (not the earlier getReportById call) decides the F3X branch.
           const summaryResponse = await reportsApi.getSummaryLines(repId);
           const summaryData = summaryResponse.data;
 
           if (summaryData?.metadata?.formType === 'F3X') {
-            // The raw wire payload for F3X is a stricter subset of the
-            // generic SummaryData shape (see src/lib/api/f3x.ts) - this
-            // narrowing is safe once formType is confirmed at runtime.
-            setF3xData(summaryData as unknown as F3XRawReportData);
+            // F3X uses the data-only API contract. UI metadata is supplied by
+            // f3xDefinition.ts and never comes from the backend.
+            setF3xData(summaryData as unknown as F3XReportData);
           } else if (summaryData?.sections) {
             const sortedSections = [...summaryData.sections].sort((a, b) => {
               const orderA = Number(a.sectionOrder) || 0;
@@ -294,9 +285,6 @@ export default function ReportDetailPage() {
       const isColumn2 = colIdx === 1;
 
       if (col.type === 'merge') {
-        const lineNumberColIndex = columns.findIndex(c => c.key === 'lineNumber');
-        const isLineNumberCol = lineNumberColIndex >= 0;
-
         const colSpan = columns.length - colIdx;
 
         const mergedValues = columns
@@ -312,35 +300,15 @@ export default function ReportDetailPage() {
             style={{ textAlign: 'left', padding: cellPadding }}
             id={getLineId(line.lineNumber)}
           >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              flexWrap: 'nowrap',
-              gap: '16px',
-            }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'nowrap', gap: '16px' }}>
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: cellFontSize }}>
                   {getIndentPadding(line.indent)}
                   {formatValue(line[col.key], 'text')}
                   {isColumn2 && renderLinkToButton(line.linkTo)}
                 </span>
-                {isColumn2 && line.calculation && (
-                  <>
-                    <br />
-                    <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
-                      {getIndentPadding(line.indent)}({line.calculation})
-                    </span>
-                  </>
-                )}
-                {isColumn2 && line.note && (
-                  <>
-                    <br />
-                    <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
-                      {getIndentPadding(line.indent)}({line.note})
-                    </span>
-                  </>
-                )}
+                {isColumn2 && line.calculation && <><br /><span style={{ fontSize: '0.85em', color: '#6b7280' }}>{getIndentPadding(line.indent)}({line.calculation})</span></>}
+                {isColumn2 && line.note && <><br /><span style={{ fontSize: '0.85em', color: '#6b7280' }}>{getIndentPadding(line.indent)}({line.note})</span></>}
               </div>
               {mergedValues.length > 1 && (
                 <span style={{ fontWeight: 600, fontSize: cellFontSize, whiteSpace: 'nowrap' }}>
@@ -356,12 +324,7 @@ export default function ReportDetailPage() {
         cells.push(
           <td
             key={colIdx}
-            style={{
-              textAlign: col.type === 'currency' ? 'right' : 'left',
-              fontWeight: col.key === 'lineNumber' ? 'bold' : 'normal',
-              padding: cellPadding,
-              fontSize: cellFontSize,
-            }}
+            style={{ textAlign: col.type === 'currency' ? 'right' : 'left', fontWeight: col.key === 'lineNumber' ? 'bold' : 'normal', padding: cellPadding, fontSize: cellFontSize }}
             id={col.key === 'lineNumber' ? getLineId(line.lineNumber) : undefined}
           >
             {col.key === 'lineNumber' ? (
@@ -373,22 +336,8 @@ export default function ReportDetailPage() {
                   {formatValue(line[col.key], col.type)}
                   {isColumn2 && renderLinkToButton(line.linkTo)}
                 </span>
-                {isColumn2 && line.calculation && (
-                  <>
-                    <br />
-                    <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
-                      {getIndentPadding(line.indent)}({line.calculation})
-                    </span>
-                  </>
-                )}
-                {isColumn2 && line.note && (
-                  <>
-                    <br />
-                    <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
-                      {getIndentPadding(line.indent)}({line.note})
-                    </span>
-                  </>
-                )}
+                {isColumn2 && line.calculation && <><br /><span style={{ fontSize: '0.85em', color: '#6b7280' }}>{getIndentPadding(line.indent)}({line.calculation})</span></>}
+                {isColumn2 && line.note && <><br /><span style={{ fontSize: '0.85em', color: '#6b7280' }}>{getIndentPadding(line.indent)}({line.note})</span></>}
               </div>
             )}
           </td>
@@ -405,12 +354,7 @@ export default function ReportDetailPage() {
 
     return (
       <div style={{ overflowX: 'auto', maxWidth: '100%', display: 'block' }}>
-        <table
-          key={section.id}
-          id={section.id}
-          style={{ width: '100%', fontSize: '16px', tableLayout: 'fixed' }}
-          className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer"
-        >
+        <table key={section.id} id={section.id} style={{ width: '100%', fontSize: '16px', tableLayout: 'fixed' }} className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer">
           <thead>
             <tr style={{ textAlign: 'left', backgroundColor: '#aeb0b5' }}>
               <th colSpan={columns.length}>
@@ -420,36 +364,13 @@ export default function ReportDetailPage() {
                 </span>
               </th>
             </tr>
-            {section.subtitle && (
-              <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-                <th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: '8px', fontSize: '14px' }}>
-                  {section.subtitle}
-                </th>
-              </tr>
-            )}
+            {section.subtitle && <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}><th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: '8px', fontSize: '14px' }}>{section.subtitle}</th></tr>}
             <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-              {columns.map((col, idx) => (
-                <th
-                  key={idx}
-                  style={{
-                    whiteSpace: 'pre-line',
-                    width: '50%',
-                    textAlign: col.type === 'currency' ? 'right' : 'left',
-                    padding: '8px',
-                    fontSize: '14px',
-                  }}
-                >
-                  {col.label}
-                </th>
-              ))}
+              {columns.map((col, idx) => <th key={idx} style={{ whiteSpace: 'pre-line', width: '50%', textAlign: col.type === 'currency' ? 'right' : 'left', padding: '8px', fontSize: '14px' }}>{col.label}</th>)}
             </tr>
           </thead>
           <tbody style={{ display: isExpanded ? '' : 'none' }}>
-            {section.lines.map((line, idx) => (
-              <tr key={idx} style={line.isTotal ? { backgroundColor: '#f3f4f6', fontWeight: 600 } : {}}>
-                {renderTableCells(line, columns)}
-              </tr>
-            ))}
+            {section.lines.map((line, idx) => <tr key={idx} style={line.isTotal ? { backgroundColor: '#f3f4f6', fontWeight: 600 } : {}}>{renderTableCells(line, columns)}</tr>)}
           </tbody>
         </table>
       </div>
@@ -459,7 +380,6 @@ export default function ReportDetailPage() {
   const renderThreeColumnSection = (section: Section) => {
     const isExpanded = expandedSections[section.id];
     const columns = section.columns || [];
-
     const getColumnWidth = (columnIndex: number): string => {
       if (columnIndex === 0) return '10%';
       if (columnIndex === 1) return '60%';
@@ -469,51 +389,14 @@ export default function ReportDetailPage() {
 
     return (
       <div style={{ overflowX: 'auto', maxWidth: '100%', display: 'block' }}>
-        <table
-          key={section.id}
-          id={section.id}
-          style={{ width: '100%', fontSize: '16px' }}
-          className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer"
-        >
+        <table key={section.id} id={section.id} style={{ width: '100%', fontSize: '16px' }} className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer">
           <thead>
-            <tr style={{ textAlign: 'left', backgroundColor: '#aeb0b5' }}>
-              <th colSpan={columns.length}>
-                <span style={{ whiteSpace: 'pre-line', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-                  <ChevronToggle isExpanded={isExpanded} onClick={() => toggleSection(section.id)} />
-                  {section.title?.toUpperCase()}
-                </span>
-              </th>
-            </tr>
-            {section.subtitle && (
-              <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-                <th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: '8px', fontSize: '14px' }}>
-                  {section.subtitle}
-                </th>
-              </tr>
-            )}
-            <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-              {columns.map((col, idx) => (
-                <th
-                  key={idx}
-                  style={{
-                    whiteSpace: 'pre-line',
-                    width: getColumnWidth(idx),
-                    textAlign: col.type === 'currency' ? 'right' : 'left',
-                    padding: '8px',
-                    fontSize: '14px',
-                  }}
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
+            <tr style={{ textAlign: 'left', backgroundColor: '#aeb0b5' }}><th colSpan={columns.length}><span style={{ whiteSpace: 'pre-line', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}><ChevronToggle isExpanded={isExpanded} onClick={() => toggleSection(section.id)} />{section.title?.toUpperCase()}</span></th></tr>
+            {section.subtitle && <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}><th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: '8px', fontSize: '14px' }}>{section.subtitle}</th></tr>}
+            <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>{columns.map((col, idx) => <th key={idx} style={{ whiteSpace: 'pre-line', width: getColumnWidth(idx), textAlign: col.type === 'currency' ? 'right' : 'left', padding: '8px', fontSize: '14px' }}>{col.label}</th>)}</tr>
           </thead>
           <tbody style={{ display: isExpanded ? '' : 'none' }}>
-            {section.lines.map((line, idx) => (
-              <tr key={idx} style={line.isTotal ? { backgroundColor: '#f3f4f6', fontWeight: 600 } : {}}>
-                {renderTableCells(line, columns)}
-              </tr>
-            ))}
+            {section.lines.map((line, idx) => <tr key={idx} style={line.isTotal ? { backgroundColor: '#f3f4f6', fontWeight: 600 } : {}}>{renderTableCells(line, columns)}</tr>)}
           </tbody>
         </table>
       </div>
@@ -523,7 +406,6 @@ export default function ReportDetailPage() {
   const renderFourColumnSection = (section: Section) => {
     const isExpanded = expandedSections[section.id];
     const columns = section.columns || [];
-
     const getColumnWidth = (columnIndex: number): string => {
       if (columnIndex === 0) return '10%';
       if (columnIndex === 1) return '45%';
@@ -533,51 +415,13 @@ export default function ReportDetailPage() {
 
     return (
       <div style={{ overflowX: 'auto', maxWidth: '100%', display: 'block' }}>
-        <table
-          key={section.id}
-          id={section.id}
-          style={{ width: '100%', fontSize: '16px' }}
-          className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer"
-        >
+        <table key={section.id} id={section.id} style={{ width: '100%', fontSize: '16px' }} className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer">
           <thead>
-            <tr style={{ textAlign: 'left', backgroundColor: '#aeb0b5' }}>
-              <th colSpan={columns.length}>
-                <span style={{ whiteSpace: 'pre-line', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-                  <ChevronToggle isExpanded={isExpanded} onClick={() => toggleSection(section.id)} />
-                  {section.title?.toUpperCase()}
-                </span>
-              </th>
-            </tr>
-            {section.subtitle && (
-              <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-                <th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: '8px', fontSize: '14px' }}>
-                  {section.subtitle}
-                </th>
-              </tr>
-            )}
-            <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-              {columns.map((col, idx) => (
-                <th
-                  key={idx}
-                  style={{
-                    width: getColumnWidth(idx),
-                    textAlign: col.type === 'currency' ? 'right' : 'left',
-                    padding: '8px',
-                    fontSize: '14px',
-                  }}
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
+            <tr style={{ textAlign: 'left', backgroundColor: '#aeb0b5' }}><th colSpan={columns.length}><span style={{ whiteSpace: 'pre-line', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}><ChevronToggle isExpanded={isExpanded} onClick={() => toggleSection(section.id)} />{section.title?.toUpperCase()}</span></th></tr>
+            {section.subtitle && <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}><th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: '8px', fontSize: '14px' }}>{section.subtitle}</th></tr>}
+            <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>{columns.map((col, idx) => <th key={idx} style={{ width: getColumnWidth(idx), textAlign: col.type === 'currency' ? 'right' : 'left', padding: '8px', fontSize: '14px' }}>{col.label}</th>)}</tr>
           </thead>
-          <tbody style={{ display: isExpanded ? '' : 'none' }}>
-            {section.lines.map((line, idx) => (
-              <tr key={idx} style={line.isTotal ? { backgroundColor: '#f3f4f6', fontWeight: 600 } : {}}>
-                {renderTableCells(line, columns)}
-              </tr>
-            ))}
-          </tbody>
+          <tbody style={{ display: isExpanded ? '' : 'none' }}>{section.lines.map((line, idx) => <tr key={idx} style={line.isTotal ? { backgroundColor: '#f3f4f6', fontWeight: 600 } : {}}>{renderTableCells(line, columns)}</tr>)}</tbody>
         </table>
       </div>
     );
@@ -586,7 +430,6 @@ export default function ReportDetailPage() {
   const renderMultiColumnSection = (section: Section) => {
     const isExpanded = expandedSections[section.id];
     const columns = section.columns || [];
-
     const getColumnWidth = (columnIndex: number): string => {
       if (columnIndex === 0) return '10%';
       if (columnIndex === 1) return '45%';
@@ -597,51 +440,13 @@ export default function ReportDetailPage() {
 
     return (
       <div style={{ overflowX: 'auto', maxWidth: '100%', display: 'block' }}>
-        <table
-          key={section.id}
-          id={section.id}
-          style={{ width: '100%', fontSize: '16px' }}
-          className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer"
-        >
+        <table key={section.id} id={section.id} style={{ width: '100%', fontSize: '16px' }} className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer">
           <thead>
-            <tr style={{ textAlign: 'left', backgroundColor: '#aeb0b5' }}>
-              <th colSpan={columns.length}>
-                <span style={{ whiteSpace: 'pre-line', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-                  <ChevronToggle isExpanded={isExpanded} onClick={() => toggleSection(section.id)} />
-                  {section.title?.toUpperCase()}
-                </span>
-              </th>
-            </tr>
-            {section.subtitle && (
-              <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-                <th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: '8px', fontSize: '14px' }}>
-                  {section.subtitle}
-                </th>
-              </tr>
-            )}
-            <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-              {columns.map((col, idx) => (
-                <th
-                  key={idx}
-                  style={{
-                    textAlign: col.type === 'currency' ? 'center' : 'left',
-                    padding: '8px',
-                    fontSize: '14px',
-                    whiteSpace: 'pre-line',
-                  }}
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
+            <tr style={{ textAlign: 'left', backgroundColor: '#aeb0b5' }}><th colSpan={columns.length}><span style={{ whiteSpace: 'pre-line', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}><ChevronToggle isExpanded={isExpanded} onClick={() => toggleSection(section.id)} />{section.title?.toUpperCase()}</span></th></tr>
+            {section.subtitle && <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}><th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: '8px', fontSize: '14px' }}>{section.subtitle}</th></tr>}
+            <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>{columns.map((col, idx) => <th key={idx} style={{ textAlign: col.type === 'currency' ? 'center' : 'left', padding: '8px', fontSize: '14px', whiteSpace: 'pre-line' }}>{col.label}</th>)}</tr>
           </thead>
-          <tbody style={{ display: isExpanded ? '' : 'none' }}>
-            {section.lines.map((line, idx) => (
-              <tr key={idx} style={line.isTotal ? { backgroundColor: '#f3f4f6', fontWeight: 600 } : {}}>
-                {renderTableCells(line, columns)}
-              </tr>
-            ))}
-          </tbody>
+          <tbody style={{ display: isExpanded ? '' : 'none' }}>{section.lines.map((line, idx) => <tr key={idx} style={line.isTotal ? { backgroundColor: '#f3f4f6', fontWeight: 600 } : {}}>{renderTableCells(line, columns)}</tr>)}</tbody>
         </table>
       </div>
     );
@@ -649,50 +454,28 @@ export default function ReportDetailPage() {
 
   const renderSection = (section: Section) => {
     const sectionType = section.type;
-
     switch (sectionType) {
-      case 'two_columns':
-        return renderTwoColumnSection(section);
-      case 'three_columns':
-        return renderThreeColumnSection(section);
-      case 'four_columns':
-        return renderFourColumnSection(section);
-      case 'multi_columns':
-        return renderMultiColumnSection(section);
+      case 'two_columns': return renderTwoColumnSection(section);
+      case 'three_columns': return renderThreeColumnSection(section);
+      case 'four_columns': return renderFourColumnSection(section);
+      case 'multi_columns': return renderMultiColumnSection(section);
       default:
         console.warn(`Unknown section type: ${sectionType}, falling back to two_columns`);
         return renderTwoColumnSection(section);
     }
   };
 
-  // ============================================================================
-  // Render
-  // ============================================================================
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
   }
 
   if (error || !report) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800">{error || 'Report not found'}</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="min-h-screen bg-gray-50"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"><div className="bg-red-50 border border-red-200 rounded-lg p-4"><p className="text-red-800">{error || 'Report not found'}</p></div></div></div>;
   }
 
   const metadata = isF3X ? f3xData?.metadata : summary?.metadata;
   const committee = isF3X ? f3xData?.committee : summary?.committee;
   const candidate = isF3X ? undefined : summary?.candidate;
-
   const displayName = candidate?.candidateName || committee?.name || report?.committeeName || '';
   const displayId = candidate?.candidateId || committee?.id || report?.committeeId || '';
   const reportId = metadata?.reportId || report?.reportId;
@@ -700,12 +483,7 @@ export default function ReportDetailPage() {
   const breadcrumbItems = [
     { label: 'Home', href: 'https://www.fec.gov' },
     { label: 'Campaign finance data', href: 'https://www.fec.gov/data/' },
-    {
-      label: committee ? 'Committee profile' : 'Candidate profile',
-      href: committee
-        ? `https://www.fec.gov/data/committee/${displayId}/?tab=about-committee`
-        : `https://www.fec.gov/data/candidate/${displayId}/`,
-    },
+    { label: committee ? 'Committee profile' : 'Candidate profile', href: committee ? `https://www.fec.gov/data/committee/${displayId}/?tab=about-committee` : `https://www.fec.gov/data/candidate/${displayId}/` },
     { label: displayName, href: `/forms/${displayId}` },
     { label: 'Summary', href: `/forms/${displayId}/${repId}` },
   ];
@@ -715,72 +493,26 @@ export default function ReportDetailPage() {
       <Breadcrumbs items={breadcrumbItems} />
       <div className="u-padding--left u-padding--right tab-interface">
         <header className="main">
-          <h1 className="entity__name content__section--narrow">
-            {displayName}
-          </h1>
-          <div className="heading--section">
-            <span className="t-data t-bold entity__type">ID: {displayId}</span>
-            <span className="t-data t-bold entity__type">Report ID: FEC-{reportId}</span>
-          </div>
+          <h1 className="entity__name content__section--narrow">{displayName}</h1>
+          <div className="heading--section"><span className="t-data t-bold entity__type">ID: {displayId}</span><span className="t-data t-bold entity__type">Report ID: FEC-{reportId}</span></div>
         </header>
 
         <div className="data-container__wrapper">
           {reportId && <ScheduleSidenav reportId={String(reportId)} />}
-
           <section id="section-1" className="tab-content" role="tabpanel">
-            <h2 id="section-1-heading">
-              {metadata?.formType || 'FORM'} (FEC-{reportId})
-            </h2>
+            <h2 id="section-1-heading">{metadata?.formType || 'FORM'} (FEC-{reportId})</h2>
             <div className="slab slab--inline slab--neutral u-padding--left u-padding--right">
               <div className="row content__section">
                 <div id="report" className="entity__figure row" style={{ overflowX: 'visible' }}>
-                  <div className="u-float-right">
-                    <button
-                      type="button"
-                      id="exportJson"
-                      className="js-export button button--cta button--export"
-                      onClick={handleExportJson}
-                    >
-                      Export
-                    </button>
-                  </div>
-                  <div className="heading--section heading--with-action">
-                    <h3 className="entity__title">
-                      {metadata?.formTitle || 'Report of Receipts and Disbursements'}
-                    </h3>
-                    <h3 className="entity__title">
-                      {metadata?.formSubTitle || ''}
-                    </h3>
-                  </div>
-
-                  <div
-                    id="summary"
-                    className="entity__figure entity__figure--narrow"
-                    style={{ overflowX: 'visible', maxWidth: '100%' }}
-                  >
+                  <div className="u-float-right"><button type="button" id="exportJson" className="js-export button button--cta button--export" onClick={handleExportJson}>Export</button></div>
+                  <div className="heading--section heading--with-action"><h3 className="entity__title">{metadata?.formTitle || 'Report of Receipts and Disbursements'}</h3><h3 className="entity__title">{metadata?.formSubTitle || ''}</h3></div>
+                  <div id="summary" className="entity__figure entity__figure--narrow" style={{ overflowX: 'visible', maxWidth: '100%' }}>
                     {isF3X ? (
-                      f3xData ? (
-                        <F3XReport data={f3xData} />
-                      ) : (
-                        <div className="slab slab--neutral u-padding--left u-padding--right">
-                          <p className="text-gray-500 text-center py-8">
-                            No summary data available for this report.
-                          </p>
-                        </div>
-                      )
+                      f3xData ? <F3XReport data={f3xData} /> : <div className="slab slab--neutral u-padding--left u-padding--right"><p className="text-gray-500 text-center py-8">No summary data available for this report.</p></div>
                     ) : summary?.sections && summary.sections.length > 0 ? (
-                      summary.sections.map((section) => (
-                        <div key={section.id}>
-                          {renderSection(section)}
-                          <br />
-                        </div>
-                      ))
+                      summary.sections.map((section) => <div key={section.id}>{renderSection(section)}<br /></div>)
                     ) : (
-                      <div className="slab slab--neutral u-padding--left u-padding--right">
-                        <p className="text-gray-500 text-center py-8">
-                          No summary data available for this report.
-                        </p>
-                      </div>
+                      <div className="slab slab--neutral u-padding--left u-padding--right"><p className="text-gray-500 text-center py-8">No summary data available for this report.</p></div>
                     )}
                   </div>
                 </div>
@@ -792,109 +524,15 @@ export default function ReportDetailPage() {
         <footer className="mt-16 bg-white border-t border-gray-200"></footer>
       </div>
 
-      {/* Message Modal */}
       {messageModal.isOpen && typeof document !== 'undefined' && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            }}
-            onClick={() => setMessageModal({ isOpen: false, title: '', content: '' })}
-          />
-          <div
-            style={{
-              position: 'relative',
-              backgroundColor: 'white',
-              borderRadius: '8px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              width: '90%',
-              maxWidth: '800px',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              zIndex: 100000,
-            }}
-          >
-            <div
-              style={{
-                padding: '16px 24px',
-                borderBottom: '1px solid #e5e7eb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#111827' }}>
-                {messageModal.title}
-              </h3>
-              <button
-                onClick={() => setMessageModal({ isOpen: false, title: '', content: '' })}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#6b7280' }}
-              >
-                <X size={24} />
-              </button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)' }} onClick={() => setMessageModal({ isOpen: false, title: '', content: '' })} />
+          <div style={{ position: 'relative', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', width: '90%', maxWidth: '800px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', zIndex: 100000 }}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#111827' }}>{messageModal.title}</h3>
+              <button onClick={() => setMessageModal({ isOpen: false, title: '', content: '' })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#6b7280' }}><X size={20} /></button>
             </div>
-            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-              <div
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  fontSize: '14px',
-                  lineHeight: '1.6',
-                  color: '#374151',
-                  backgroundColor: '#f9fafb',
-                  padding: '16px',
-                  borderRadius: '6px',
-                  border: '1px solid #e5e7eb',
-                }}
-              >
-                {messageModal.content}
-              </div>
-            </div>
-            <div
-              style={{
-                padding: '16px 24px',
-                borderTop: '1px solid #e5e7eb',
-                display: 'flex',
-                justifyContent: 'flex-end',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setMessageModal({ isOpen: false, title: '', content: '' })}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#164f85',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1a6bb5')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#164f85')}
-              >
-                Close
-              </button>
-            </div>
+            <div style={{ padding: '24px', overflowY: 'auto', whiteSpace: 'pre-wrap', color: '#374151' }}>{messageModal.content}</div>
           </div>
         </div>
       )}
