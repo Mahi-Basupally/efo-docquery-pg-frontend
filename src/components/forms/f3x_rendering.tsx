@@ -184,6 +184,9 @@ export default function F3XReport({ data }: F3XReportProps) {
       columns.forEach((column) => {
         if (column.key === 'label') {
           cells[column.key] = buildDescriptionCell(line);
+        } else if (column.key === 'lineNumber') {
+          // An intentionally empty line number stays empty in the table.
+          cells[column.key] = line.lineNumber ?? '';
         } else {
           cells[column.key] = formatCellValue(line[column.key as keyof F3XFormDetailLine], column.format);
         }
