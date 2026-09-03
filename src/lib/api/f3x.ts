@@ -1,34 +1,17 @@
 /**
- * F3X ("Report of Receipts and Disbursements") report types and API client.
+ * F3X report data contract and API client.
  *
- * The backend (efo-docquery-pg-backend app/services/f3x_service.py) currently
- * returns a single JSON payload that mixes real report data (committee,
- * metadata, line labels/values/amounts) with frontend rendering instructions
- * (columns, section/line order, indent, isTotal, calculation, hasSchedule,
- * scheduleType, linkTo, note). Until that endpoint is split, this module:
- *
- *  - Types that raw wire payload explicitly as F3XRawReportData/F3XRawSection/
- *    F3XRawLine (superset types, so the API boundary is never `unknown`/`any`).
- *  - Defines the target data-only contract (F3XReportData/F3XSection/F3XLine)
- *    that the backend should eventually return directly.
- *  - Provides toF3XReportData() to derive the clean, data-only shape from the
- *    raw payload today.
- *
- * All rendering decisions (which columns to show, section/line ordering,
- * indentation, totals styling, links, schedule presentation) belong to
- * src/components/forms/f3x_rendering.tsx, not to these types.
+ * The backend is the source of report data. Presentation metadata is kept in
+ * src/components/forms/f3xDefinition.ts and applied by the F3X renderer.
  */
 
 import { apiClient } from './client';
 import type { Committee, Metadata } from './types';
 
-// ============================================================================
-// Data-only contract (target shape)
-// ============================================================================
-
 export interface F3XLine {
+  lineId: string;
   lineNumber?: string;
-  label?: string;
+  lineDescription?: string;
   value?: string | number | null;
   columnA?: number | string | null;
   columnB?: number | string | null;
@@ -47,10 +30,7 @@ export interface F3XReportData {
   sections: F3XSection[];
 }
 
-// ============================================================================
-// Raw wire contract (what the API currently returns for F3X)
-// ============================================================================
-
+/** Temporary wire types for the current backend response. */
 export type F3XRawLineType = 'text' | 'merge';
 export type F3XRawSectionLayout = 'three_columns' | 'four_columns';
 
@@ -61,6 +41,8 @@ export interface F3XRawColumn {
 }
 
 export interface F3XRawLine extends F3XLine {
+  /** Legacy backend field retained only at the API boundary. */
+  label?: string;
   type?: F3XRawLineType;
   lineOrder?: number;
   indent?: number;
@@ -70,6 +52,7 @@ export interface F3XRawLine extends F3XLine {
   scheduleType?: string;
   linkTo?: string;
   note?: string;
+  valueType?: string;
 }
 
 export interface F3XRawSection extends Omit<F3XSection, 'lines'> {
@@ -87,10 +70,10 @@ export interface F3XReportResponse {
   data: F3XRawReportData;
 }
 
-// ============================================================================
-// Raw -> data-only mapping
-// ============================================================================
-
+/**
+ * Normalize the current wire response into the data-only contract.
+ * Rendering metadata is deliberately not copied into the result.
+ */
 export function toF3XReportData(raw: F3XRawReportData): F3XReportData {
   return {
     metadata: raw.metadata,
@@ -100,8 +83,9 @@ export function toF3XReportData(raw: F3XRawReportData): F3XReportData {
       title: section.title,
       subtitle: section.subtitle,
       lines: section.lines.map((line) => ({
+        lineId: line.lineId,
         lineNumber: line.lineNumber,
-        label: line.label,
+        lineDescription: line.lineDescription ?? line.label,
         value: line.value,
         columnA: line.columnA,
         columnB: line.columnB,
@@ -109,10 +93,6 @@ export function toF3XReportData(raw: F3XRawReportData): F3XReportData {
     })),
   };
 }
-
-// ============================================================================
-// API client
-// ============================================================================
 
 export const f3xApi = {
   getReport: async (reportId: string): Promise<F3XReportResponse> => {
