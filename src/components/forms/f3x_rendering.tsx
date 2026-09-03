@@ -4,12 +4,13 @@ import { ReactNode, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import ReportTable, { ReportTableColumn, ReportTableRow } from '@/components/tables/ReportTable';
 import type { F3XRawLine, F3XRawReportData, F3XRawSection } from '@/lib/api/f3x';
+import { F3X_LINE_DEFINITIONS, F3X_SECTION_DEFINITIONS } from './f3xDefinition';
 
 /**
- * F3X-only rendering rules: which sections to show, in what order, with what
- * table columns, formatting, indentation, totals, merged rows, and cross-page
- * links. This is the single place F3X presentation decisions live - the
- * backend and ReportTable stay unaware of them.
+ * F3X presentation layer.
+ *
+ * Report values and descriptions come from the API. All rendering metadata
+ * comes from the frontend F3X definitions and is keyed by stable lineId.
  */
 
 interface F3XColumnConfig extends ReportTableColumn {
@@ -18,13 +19,13 @@ interface F3XColumnConfig extends ReportTableColumn {
 
 const FORM_DETAILS_COLUMNS: F3XColumnConfig[] = [
   { key: 'lineNumber', label: 'Line #', align: 'left', width: '10%', format: 'text' },
-  { key: 'label', label: 'Description', align: 'left', width: '60%', format: 'text' },
+  { key: 'lineDescription', label: 'Description', align: 'left', width: '60%', format: 'text' },
   { key: 'value', label: 'Value', align: 'left', width: '30%', format: 'text' },
 ];
 
 const FINANCIAL_COLUMNS: F3XColumnConfig[] = [
   { key: 'lineNumber', label: 'Line #', align: 'left', width: '10%', format: 'text' },
-  { key: 'label', label: 'Description', align: 'left', width: '45%', format: 'text' },
+  { key: 'lineDescription', label: 'Description', align: 'left', width: '45%', format: 'text' },
   { key: 'columnA', label: 'COLUMN A\nTotal This Period', align: 'right', width: '22.5%', format: 'currency' },
   { key: 'columnB', label: 'COLUMN B\nCalendar Year-To-Date', align: 'right', width: '22.5%', format: 'currency' },
 ];
@@ -36,55 +37,38 @@ const SUMMARY_COLUMNS: F3XColumnConfig[] = [
   { key: 'columnB', label: 'COLUMN B\nCalendar Year-To-Date', align: 'right', width: '22.5%', format: 'currency' },
 ];
 
-interface F3XSectionConfig {
-  order: number;
-  columns: F3XColumnConfig[];
-}
-
-const F3X_SECTION_CONFIG: Record<string, F3XSectionConfig> = {
-  formDetails: { order: 1, columns: FORM_DETAILS_COLUMNS },
-  summary: { order: 2, columns: SUMMARY_COLUMNS },
-  receipts: { order: 3, columns: FINANCIAL_COLUMNS },
-  disbursements: { order: 4, columns: FINANCIAL_COLUMNS },
-  contributionExpenditures: { order: 5, columns: FINANCIAL_COLUMNS },
+const F3X_SECTION_COLUMNS: Record<string, F3XColumnConfig[]> = {
+  formDetails: FORM_DETAILS_COLUMNS,
+  summary: SUMMARY_COLUMNS,
+  receipts: FINANCIAL_COLUMNS,
+  disbursements: FINANCIAL_COLUMNS,
+  contributionExpenditures: FINANCIAL_COLUMNS,
 };
-
-// ============================================================================
-// Formatting helpers (F3X presentation only)
-// ============================================================================
 
 const formatCurrency = (value: number | string | null | undefined): string => {
   if (value === null || value === undefined || value === '') return '-';
-  if (typeof value === 'string') {
-    const parsed = Number(value);
-    if (Number.isNaN(parsed)) return value;
-    value = parsed;
-  }
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (Number.isNaN(parsed)) return String(value);
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(parsed);
 };
 
-const formatCellValue = (value: string | number | null | undefined, format?: 'text' | 'currency'): string => {
+const formatCellValue = (value: unknown, format?: 'text' | 'currency'): string => {
   if (value === null || value === undefined || value === '') return '-';
-  if (format === 'currency') return formatCurrency(value);
-  return String(value);
+  return format === 'currency' ? formatCurrency(value as string | number) : String(value);
 };
 
 const getIndentPadding = (indent?: number): string =>
   indent ? '    '.repeat(indent) : '';
 
-const getLineId = (lineNumber?: string): string | undefined => {
+const getDomLineId = (lineNumber?: string): string | undefined => {
   if (!lineNumber) return undefined;
   return `line-${lineNumber.replace(/[()]/g, '-').replace(/--+/g, '-').replace(/-$/, '')}`;
 };
-
-// ============================================================================
-// Component
-// ============================================================================
 
 export interface F3XReportProps {
   data: F3XRawReportData;
@@ -92,8 +76,8 @@ export interface F3XReportProps {
 
 export default function F3XReport({ data }: F3XReportProps) {
   const orderedSections = [...data.sections].sort((a, b) => {
-    const orderA = F3X_SECTION_CONFIG[a.id]?.order ?? a.sectionOrder ?? 0;
-    const orderB = F3X_SECTION_CONFIG[b.id]?.order ?? b.sectionOrder ?? 0;
+    const orderA = F3X_SECTION_DEFINITIONS[a.id]?.order ?? a.sectionOrder ?? 0;
+    const orderB = F3X_SECTION_DEFINITIONS[b.id]?.order ?? b.sectionOrder ?? 0;
     return orderA - orderB;
   });
 
@@ -110,14 +94,15 @@ export default function F3XReport({ data }: F3XReportProps) {
   };
 
   const scrollToTarget = (target: string) => {
-    if (orderedSections.some((s) => s.id === target)) {
+    const sectionTarget = orderedSections.some((section) => section.id === target);
+    if (sectionTarget) {
       setExpandedSections((prev) => ({ ...prev, [target]: true }));
     }
 
     setTimeout(() => {
       let element = document.getElementById(target);
       if (!element) {
-        const lineId = getLineId(target);
+        const lineId = getDomLineId(target);
         element = lineId ? document.getElementById(lineId) : null;
       }
       if (element) {
@@ -145,28 +130,40 @@ export default function F3XReport({ data }: F3XReportProps) {
     );
   };
 
+  const getDefinition = (line: F3XRawLine) => F3X_LINE_DEFINITIONS[line.lineId] ?? {};
+
   const buildDescriptionCell = (line: F3XRawLine, isDescriptionColumn: boolean): ReactNode => {
-    const raw = line.label ?? '';
+    const definition = getDefinition(line);
+    const description = line.lineDescription ?? line.label ?? '';
+
     return (
       <div>
         <span style={{ fontSize: '14px' }}>
-          {isDescriptionColumn && getIndentPadding(line.indent)}
-          {raw || '-'}
-          {isDescriptionColumn && renderLinkToButton(line.linkTo)}
+          {isDescriptionColumn && getIndentPadding(definition.indent)}
+          {description || '-'}
+          {isDescriptionColumn && renderLinkToButton(definition.linkTo)}
         </span>
-        {isDescriptionColumn && line.calculation && (
+        {isDescriptionColumn && definition.calculation && (
           <>
             <br />
             <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
-              {getIndentPadding(line.indent)}({line.calculation})
+              {getIndentPadding(definition.indent)}({definition.calculation})
             </span>
           </>
         )}
-        {isDescriptionColumn && line.note && (
+        {isDescriptionColumn && definition.note && (
           <>
             <br />
             <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
-              {getIndentPadding(line.indent)}({line.note})
+              {getIndentPadding(definition.indent)}({definition.note})
+            </span>
+          </>
+        )}
+        {isDescriptionColumn && definition.hasSchedule && definition.scheduleType && (
+          <>
+            <br />
+            <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
+              Schedule {definition.scheduleType}
             </span>
           </>
         )}
@@ -175,44 +172,43 @@ export default function F3XReport({ data }: F3XReportProps) {
   };
 
   const buildRow = (line: F3XRawLine, columns: F3XColumnConfig[]): ReportTableRow => {
-    const rowId = getLineId(line.lineNumber) || `${line.label ?? ''}-${line.lineNumber ?? ''}`;
-    const rowStyle: React.CSSProperties | undefined = line.isTotal
+    const definition = getDefinition(line);
+    const rowId = line.lineId || `${line.lineNumber ?? ''}-${line.lineDescription ?? line.label ?? ''}`;
+    const rowStyle: React.CSSProperties | undefined = definition.isTotal
       ? { backgroundColor: '#f3f4f6', fontWeight: 600 }
       : undefined;
 
     if (line.type === 'merge') {
-      const hasLineNumberColumn = columns.some((c) => c.key === 'lineNumber');
-      const mergedContent = columns
-        .filter((c) => c.key !== 'lineNumber')
-        .map((c) => line[c.key as keyof F3XRawLine])
-        .filter((v) => v !== null && v !== undefined && v !== '')
-        .join(' ');
-
+      const hasLineNumberColumn = columns.some((column) => column.key === 'lineNumber');
+      const description = line.lineDescription ?? line.label ?? '';
       return {
         id: rowId,
         style: rowStyle,
         fullWidth: {
           lead: hasLineNumberColumn ? line.lineNumber || '' : undefined,
           leadColSpan: 1,
-          content: mergedContent,
+          content: description,
           contentColSpan: hasLineNumberColumn ? columns.length - 1 : columns.length,
         },
       };
     }
 
     const cells: Record<string, ReactNode> = {};
-    columns.forEach((col, idx) => {
-      const isDescriptionColumn = idx === 1;
-      if (col.key === 'lineNumber') {
-        cells[col.key] = (
-          <span style={{ fontWeight: 'bold' }} id={getLineId(line.lineNumber)}>
+    columns.forEach((column, index) => {
+      const isDescriptionColumn = index === 1;
+      if (column.key === 'lineNumber') {
+        cells[column.key] = (
+          <span style={{ fontWeight: 'bold' }} id={getDomLineId(line.lineNumber)}>
             {line.lineNumber || ''}
           </span>
         );
-      } else if (col.key === 'label') {
-        cells[col.key] = buildDescriptionCell(line, isDescriptionColumn);
+      } else if (column.key === 'lineDescription') {
+        cells[column.key] = buildDescriptionCell(line, isDescriptionColumn);
       } else {
-        cells[col.key] = formatCellValue(line[col.key as keyof F3XRawLine] as string | number | null, col.format);
+        cells[column.key] = formatCellValue(
+          line[column.key as keyof F3XRawLine],
+          column.format
+        );
       }
     });
 
@@ -220,21 +216,16 @@ export default function F3XReport({ data }: F3XReportProps) {
   };
 
   const renderSection = (section: F3XRawSection) => {
-    const config = F3X_SECTION_CONFIG[section.id];
-    const columns: F3XColumnConfig[] =
-      config?.columns ||
-      section.columns.map((c): F3XColumnConfig => ({
-        key: c.key,
-        label: c.label,
-        align: c.type === 'currency' ? 'right' : 'left',
-        format: c.type === 'currency' ? 'currency' : 'text',
-      }));
+    const columns = F3X_SECTION_COLUMNS[section.id] || section.columns.map((column): F3XColumnConfig => ({
+      key: column.key,
+      label: column.key === 'label' ? 'Description' : column.label,
+      align: column.type === 'currency' ? 'right' : 'left',
+      format: column.type === 'currency' ? 'currency' : 'text',
+    }));
 
     const sortedLines = [...section.lines].sort(
       (a, b) => (Number(a.lineOrder) || 0) - (Number(b.lineOrder) || 0)
     );
-
-    const rows = sortedLines.map((line) => buildRow(line, columns));
 
     return (
       <div key={section.id}>
@@ -243,7 +234,7 @@ export default function F3XReport({ data }: F3XReportProps) {
           title={section.title}
           subtitle={section.subtitle}
           columns={columns}
-          rows={rows}
+          rows={sortedLines.map((line) => buildRow(line, columns))}
           expanded={expandedSections[section.id]}
           onToggleExpanded={() => toggleSection(section.id)}
         />
