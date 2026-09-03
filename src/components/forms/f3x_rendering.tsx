@@ -109,11 +109,14 @@ export default function F3XReport({ data }: F3XReportProps) {
         element = lineId ? document.getElementById(lineId) : null;
       }
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        const original = element.style.backgroundColor;
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const originalBackground = element.style.backgroundColor;
+        const originalTransition = element.style.transition;
+        element.style.transition = 'background-color 200ms ease-in-out';
         element.style.backgroundColor = '#fef3c7';
         setTimeout(() => {
-          element!.style.backgroundColor = original;
+          element!.style.backgroundColor = originalBackground;
+          element!.style.transition = originalTransition;
         }, 2000);
       }
     }, 100);
@@ -200,7 +203,7 @@ export default function F3XReport({ data }: F3XReportProps) {
     columns.forEach((column) => {
       if (column.key === 'lineNumber') {
         cells[column.key] = (
-          <span style={{ fontWeight: 'bold' }} id={getDomLineId(line.lineNumber)}>
+          <span style={{ fontWeight: 'bold' }}>
             {line.lineNumber || ''}
           </span>
         );
@@ -214,7 +217,11 @@ export default function F3XReport({ data }: F3XReportProps) {
       }
     });
 
-    return { id: line.lineId, cells, style: rowStyle };
+    return {
+      id: line.lineId,
+      cells,
+      style: rowStyle,
+    };
   };
 
   const renderSection = (section: F3XSection) => {
