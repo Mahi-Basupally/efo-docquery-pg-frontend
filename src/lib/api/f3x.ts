@@ -10,7 +10,7 @@ import type { Committee, Metadata } from './types';
 
 export interface F3XFormDetailLine {
   lineNumber?: string;
-  lineDescription: string;
+  label: string;
   value?: string | number | null;
 }
 
