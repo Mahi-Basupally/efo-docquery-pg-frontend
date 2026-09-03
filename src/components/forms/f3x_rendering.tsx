@@ -19,7 +19,7 @@ interface F3XColumnConfig extends ReportTableColumn {
 
 const FORM_DETAILS_COLUMNS: F3XColumnConfig[] = [
   { key: 'lineNumber', label: 'Line #', align: 'left', width: '10%', format: 'text' },
-  { key: 'lineDescription', label: 'Description', align: 'left', width: '60%', format: 'text' },
+  { key: 'label', label: 'Description', align: 'left', width: '60%', format: 'text' },
   { key: 'value', label: 'Value', align: 'left', width: '30%', format: 'text' },
 ];
 
@@ -138,7 +138,7 @@ export default function F3XReport({ data }: F3XReportProps) {
 
   const buildDescriptionCell = (line: F3XLine): ReactNode => {
     const definition = getDefinition(line);
-    const description = line.lineDescription;
+    const description = isFinancialLine(line) ? line.lineDescription : line.label;
 
     return (
       <div>
@@ -179,13 +179,16 @@ export default function F3XReport({ data }: F3XReportProps) {
     if (!isFinancialLine(line)) {
       const cells: Record<string, ReactNode> = {};
       columns.forEach((column) => {
-        if (column.key === 'lineDescription') {
+        if (column.key === 'label') {
           cells[column.key] = buildDescriptionCell(line);
         } else {
           cells[column.key] = formatCellValue(line[column.key as keyof F3XFormDetailLine], column.format);
         }
       });
-      return { id: `form-${line.lineNumber}-${line.lineDescription}`, cells };
+      return {
+        id: `form-${line.lineNumber || 'detail'}-${line.label}`,
+        cells,
+      };
     }
 
     const definition = getDefinition(line);
@@ -194,7 +197,7 @@ export default function F3XReport({ data }: F3XReportProps) {
       : undefined;
 
     const cells: Record<string, ReactNode> = {};
-    columns.forEach((column, index) => {
+    columns.forEach((column) => {
       if (column.key === 'lineNumber') {
         cells[column.key] = (
           <span style={{ fontWeight: 'bold' }} id={getDomLineId(line.lineNumber)}>
