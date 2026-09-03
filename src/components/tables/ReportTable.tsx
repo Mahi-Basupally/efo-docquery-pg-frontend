@@ -155,7 +155,12 @@ export default function ReportTable({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.id} className={row.className} style={row.style}>
+              <tr
+                key={row.id}
+                id={row.id.startsWith('f3x-line-') ? `line-${row.id.replace(/^f3x-line-/, '').replace(/-order-\d+$/, '')}` : undefined}
+                className={row.className}
+                style={row.style}
+              >
                 {row.fullWidth ? (
                   <>
                     {row.fullWidth.lead !== undefined && (
