@@ -1,0 +1,27 @@
+/* FEC stylesheets are loaded via <link> tags in layout.tsx (Turbopack does not
+   support server-relative @import url('/...') paths) */
+
+/* Additional global styles can go here */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.skip-nav {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.skip-nav:focus {
+  position: static;
+  width: auto;
+  height: auto;
+}
