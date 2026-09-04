@@ -61,21 +61,10 @@ const getIndentPadding = (indent?: number): string =>
 const isFinancialLine = (line: F3XLine): line is F3XFinancialLine =>
   'lineId' in line;
 
-/**
- * Converts definition link ids such as:
- *   line-19       -> 19
- *   line-11-d     -> 11(d)
- *   line-11-a-i   -> 11(a)(i)
- *   line-30-a-ii  -> 30(a)(ii)
- *
- * This lets linkId remain a clean UI definition value while matching the
- * actual FEC lineNumber supplied by the API.
- */
 const linkIdToLineNumber = (linkId: string): string => {
   const value = linkId.replace(/^line-/, '');
   const parts = value.split('-');
   if (parts.length === 1) return parts[0];
-
   return parts[0] + parts.slice(1).map((part) => `(${part})`).join('');
 };
 
@@ -113,9 +102,6 @@ export default function F3XReport({ data }: F3XReportProps) {
     window.setTimeout(() => {
       let element = document.getElementById(target);
 
-      // linkId values intentionally use a compact format such as line-11-d,
-      // while the API lineNumber is 11(d). Resolve the target from the row's
-      // actual line number when the direct DOM id is not present.
       if (!element && target.startsWith('line-')) {
         const rows = Array.from(document.querySelectorAll('tr'));
         element = rows.find((row) => {
@@ -129,7 +115,6 @@ export default function F3XReport({ data }: F3XReportProps) {
       const row = element.tagName.toLowerCase() === 'tr' ? element : element.closest('tr');
       if (!row) return;
 
-      // Put the target row in the vertical center of the viewport.
       row.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
 
       const cells = Array.from(row.children) as HTMLElement[];
