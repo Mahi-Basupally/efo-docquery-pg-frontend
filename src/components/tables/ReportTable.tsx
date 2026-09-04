@@ -3,13 +3,6 @@
 import { ReactNode, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-/**
- * Generic, form-agnostic report table. Callers (e.g. a form-specific renderer
- * like f3x_rendering.tsx) decide what columns exist, how cells are formatted,
- * and what a row's content is - this component only knows how to lay a table
- * out, collapse/expand it, and render a "full width" row when asked to.
- */
-
 export interface ReportTableColumn {
   key: string;
   label: string;
@@ -19,9 +12,7 @@ export interface ReportTableColumn {
 
 export interface ReportTableRow {
   id: string;
-  /** Per-column cell content, keyed by column.key. Ignored when `fullWidth` is set. */
   cells?: Record<string, ReactNode>;
-  /** Renders this row as a single spanning cell (e.g. a section/category header row) instead of per-column cells. */
   fullWidth?: {
     lead?: ReactNode;
     leadColSpan?: number;
@@ -65,12 +56,8 @@ export default function ReportTable({
   const isExpanded = isControlled ? expanded : internalExpanded;
 
   const toggle = () => {
-    if (onToggleExpanded) {
-      onToggleExpanded();
-    }
-    if (!isControlled) {
-      setInternalExpanded((prev) => !prev);
-    }
+    if (onToggleExpanded) onToggleExpanded();
+    if (!isControlled) setInternalExpanded((prev) => !prev);
   };
 
   const alignOf = (align?: 'left' | 'right' | 'center'): 'left' | 'right' | 'center' =>
@@ -102,11 +89,7 @@ export default function ReportTable({
                     aria-expanded={isExpanded}
                     aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
                   >
-                    {isExpanded ? (
-                      <ChevronUp size={20} className="text-gray-700" />
-                    ) : (
-                      <ChevronDown size={20} className="text-gray-700" />
-                    )}
+                    {isExpanded ? <ChevronUp size={20} className="text-gray-700" /> : <ChevronDown size={20} className="text-gray-700" />}
                   </button>
                 )}
                 {title.toUpperCase()}
@@ -115,32 +98,14 @@ export default function ReportTable({
           </tr>
           {subtitle && (
             <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
-              <th
-                colSpan={columns.length}
-                style={{
-                  whiteSpace: 'pre-line',
-                  textAlign: 'left',
-                  fontStyle: 'italic',
-                  padding: cellPadding,
-                  fontSize: cellFontSize,
-                }}
-              >
+              <th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: cellPadding, fontSize: cellFontSize }}>
                 {subtitle}
               </th>
             </tr>
           )}
           <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
             {columns.map((col) => (
-              <th
-                key={col.key}
-                style={{
-                  whiteSpace: 'pre-line',
-                  width: col.width,
-                  textAlign: alignOf(col.align),
-                  padding: cellPadding,
-                  fontSize: cellFontSize,
-                }}
-              >
+              <th key={col.key} style={{ whiteSpace: 'pre-line', width: col.width, textAlign: alignOf(col.align), padding: cellPadding, fontSize: cellFontSize }}>
                 {col.label}
               </th>
             ))}
@@ -157,37 +122,26 @@ export default function ReportTable({
             rows.map((row) => (
               <tr
                 key={row.id}
-                id={row.id.startsWith('f3x-line-') ? `line-${row.id.replace(/^f3x-line-/, '').replace(/-order-\d+$/, '')}` : undefined}
+                // For F3X rows, row.id is the API lineId. Keep the DOM id
+                // identical so linkId can target the exact row by lineId.
+                id={row.id.startsWith('f3x-line-') ? row.id : undefined}
                 className={row.className}
                 style={row.style}
               >
                 {row.fullWidth ? (
                   <>
                     {row.fullWidth.lead !== undefined && (
-                      <td
-                        colSpan={row.fullWidth.leadColSpan ?? 1}
-                        style={{ textAlign: 'left', fontWeight: 'bold', padding: cellPadding, fontSize: cellFontSize }}
-                      >
+                      <td colSpan={row.fullWidth.leadColSpan ?? 1} style={{ textAlign: 'left', fontWeight: 'bold', padding: cellPadding, fontSize: cellFontSize }}>
                         {row.fullWidth.lead}
                       </td>
                     )}
-                    <td
-                      colSpan={row.fullWidth.contentColSpan ?? columns.length - (row.fullWidth.lead !== undefined ? 1 : 0)}
-                      style={{ textAlign: 'left', fontWeight: 'bold', padding: cellPadding, fontSize: cellFontSize }}
-                    >
+                    <td colSpan={row.fullWidth.contentColSpan ?? columns.length - (row.fullWidth.lead !== undefined ? 1 : 0)} style={{ textAlign: 'left', fontWeight: 'bold', padding: cellPadding, fontSize: cellFontSize }}>
                       {row.fullWidth.content}
                     </td>
                   </>
                 ) : (
                   columns.map((col) => (
-                    <td
-                      key={col.key}
-                      style={{
-                        textAlign: alignOf(col.align),
-                        padding: cellPadding,
-                        fontSize: cellFontSize,
-                      }}
-                    >
+                    <td key={col.key} style={{ textAlign: alignOf(col.align), padding: cellPadding, fontSize: cellFontSize }}>
                       {row.cells?.[col.key]}
                     </td>
                   ))
