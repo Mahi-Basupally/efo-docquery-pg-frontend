@@ -61,6 +61,24 @@ const getIndentPadding = (indent?: number): string =>
 const isFinancialLine = (line: F3XLine): line is F3XFinancialLine =>
   'lineId' in line;
 
+/**
+ * Converts definition link ids such as:
+ *   line-19       -> 19
+ *   line-11-d     -> 11(d)
+ *   line-11-a-i   -> 11(a)(i)
+ *   line-30-a-ii  -> 30(a)(ii)
+ *
+ * This lets linkId remain a clean UI definition value while matching the
+ * actual FEC lineNumber supplied by the API.
+ */
+const linkIdToLineNumber = (linkId: string): string => {
+  const value = linkId.replace(/^line-/, '');
+  const parts = value.split('-');
+  if (parts.length === 1) return parts[0];
+
+  return parts[0] + parts.slice(1).map((part) => `(${part})`).join('');
+};
+
 export interface F3XReportProps {
   data: F3XReportData;
 }
@@ -85,19 +103,34 @@ export default function F3XReport({ data }: F3XReportProps) {
   };
 
   const scrollToTarget = (target: string) => {
+    const targetLineNumber = target.startsWith('line-') ? linkIdToLineNumber(target) : target;
     const sectionTarget = orderedSections.some((section) => section.id === target);
+
     if (sectionTarget) {
       setExpandedSections((prev) => ({ ...prev, [target]: true }));
     }
 
-    setTimeout(() => {
-      const element = document.getElementById(target);
-      if (!element) return;
+    window.setTimeout(() => {
+      let element = document.getElementById(target);
 
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // linkId values intentionally use a compact format such as line-11-d,
+      // while the API lineNumber is 11(d). Resolve the target from the row's
+      // actual line number when the direct DOM id is not present.
+      if (!element && target.startsWith('line-')) {
+        const rows = Array.from(document.querySelectorAll('tr'));
+        element = rows.find((row) => {
+          const lineNumberCell = row.querySelector('td:first-child');
+          return lineNumberCell?.textContent?.trim() === targetLineNumber;
+        }) ?? null;
+      }
+
+      if (!element) return;
 
       const row = element.tagName.toLowerCase() === 'tr' ? element : element.closest('tr');
       if (!row) return;
+
+      // Put the target row in the vertical center of the viewport.
+      row.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
 
       const cells = Array.from(row.children) as HTMLElement[];
       const original = cells.map((cell) => ({
@@ -125,7 +158,7 @@ export default function F3XReport({ data }: F3XReportProps) {
           cell.style.boxShadow = previous.boxShadow;
         });
       }, 2200);
-    }, sectionTarget ? 150 : 50);
+    }, sectionTarget ? 200 : 50);
   };
 
   const renderLinkToButton = (linkId?: string) => {
@@ -135,7 +168,7 @@ export default function F3XReport({ data }: F3XReportProps) {
         type="button"
         onClick={() => scrollToTarget(linkId)}
         className="ml-2 inline-flex items-center rounded text-blue-700 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        title={`Go to ${linkId}`}
+        title={`Go to ${linkIdToLineNumber(linkId)}`}
         style={{ padding: '2px 6px', fontSize: '12px' }}
       >
         <ExternalLink size={14} className="inline" />
