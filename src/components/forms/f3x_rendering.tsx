@@ -6,13 +6,6 @@ import ReportTable, { ReportTableColumn, ReportTableRow } from '@/components/tab
 import type { F3XFinancialLine, F3XFormDetailLine, F3XLine, F3XReportData, F3XSection } from '@/lib/api/f3x';
 import { F3X_LINE_DEFINITIONS, F3X_SECTION_DEFINITIONS } from './f3xDefinition';
 
-/**
- * F3X presentation layer.
- *
- * The API supplies data and stable lineId values. All presentation metadata
- * comes from the frontend F3X definitions.
- */
-
 interface F3XColumnConfig extends ReportTableColumn {
   format?: 'text' | 'currency';
 }
@@ -63,12 +56,7 @@ const formatCellValue = (value: unknown, format?: 'text' | 'currency'): string =
 };
 
 const getIndentPadding = (indent?: number): string =>
-  indent ? '    '.repeat(indent) : '';
-
-const getDomLineId = (lineNumber?: string): string | undefined => {
-  if (!lineNumber) return undefined;
-  return `line-${lineNumber.replace(/[()]/g, '-').replace(/--+/g, '-').replace(/-$/, '')}`;
-};
+  indent ? '\u00a0\u00a0\u00a0\u00a0'.repeat(indent) : '';
 
 const isFinancialLine = (line: F3XLine): line is F3XFinancialLine =>
   'lineId' in line;
@@ -103,32 +91,51 @@ export default function F3XReport({ data }: F3XReportProps) {
     }
 
     setTimeout(() => {
-      let element = document.getElementById(target);
-      if (!element) {
-        const lineId = getDomLineId(target);
-        element = lineId ? document.getElementById(lineId) : null;
-      }
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const originalBackground = element.style.backgroundColor;
-        const originalTransition = element.style.transition;
-        element.style.transition = 'background-color 200ms ease-in-out';
-        element.style.backgroundColor = '#fef3c7';
-        setTimeout(() => {
-          element!.style.backgroundColor = originalBackground;
-          element!.style.transition = originalTransition;
-        }, 2000);
-      }
-    }, 100);
+      const element = document.getElementById(target);
+      if (!element) return;
+
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      const row = element.tagName.toLowerCase() === 'tr' ? element : element.closest('tr');
+      if (!row) return;
+
+      const cells = Array.from(row.children) as HTMLElement[];
+      const original = cells.map((cell) => ({
+        backgroundImage: cell.style.backgroundImage,
+        backgroundColor: cell.style.backgroundColor,
+        transition: cell.style.transition,
+        boxShadow: cell.style.boxShadow,
+      }));
+
+      cells.forEach((cell) => {
+        cell.style.transition = 'background 250ms ease, box-shadow 250ms ease';
+        cell.style.backgroundImage =
+          'linear-gradient(180deg, rgba(255,255,255,0.48) 0%, rgba(0,94,168,0.16) 45%, rgba(0,94,168,0.30) 100%)';
+        cell.style.backgroundColor = '#e5f1fa';
+        cell.style.boxShadow =
+          'inset 0 1px 0 rgba(255,255,255,0.80), inset 0 -1px 0 rgba(0,94,168,0.24)';
+      });
+
+      window.setTimeout(() => {
+        cells.forEach((cell, index) => {
+          const previous = original[index];
+          cell.style.backgroundImage = previous.backgroundImage;
+          cell.style.backgroundColor = previous.backgroundColor;
+          cell.style.transition = previous.transition;
+          cell.style.boxShadow = previous.boxShadow;
+        });
+      }, 2200);
+    }, sectionTarget ? 150 : 50);
   };
 
-  const renderLinkToButton = (linkTo?: string) => {
-    if (!linkTo) return null;
+  const renderLinkToButton = (linkId?: string) => {
+    if (!linkId) return null;
     return (
       <button
-        onClick={() => scrollToTarget(linkTo)}
-        className="ml-2 text-blue-600 hover:text-blue-800"
-        title={`Go to ${linkTo}`}
+        type="button"
+        onClick={() => scrollToTarget(linkId)}
+        className="ml-2 inline-flex items-center rounded text-blue-700 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        title={`Go to ${linkId}`}
         style={{ padding: '2px 6px', fontSize: '12px' }}
       >
         <ExternalLink size={14} className="inline" />
@@ -148,7 +155,7 @@ export default function F3XReport({ data }: F3XReportProps) {
         <span style={{ fontSize: '14px' }}>
           {isFinancialLine(line) && getIndentPadding(definition.indent)}
           {description || '-'}
-          {isFinancialLine(line) && renderLinkToButton(definition.linkTo)}
+          {isFinancialLine(line) && renderLinkToButton(definition.linkId)}
         </span>
         {isFinancialLine(line) && definition.calculation && (
           <>
@@ -185,7 +192,6 @@ export default function F3XReport({ data }: F3XReportProps) {
         if (column.key === 'label') {
           cells[column.key] = buildDescriptionCell(line);
         } else if (column.key === 'lineNumber') {
-          // An intentionally empty line number stays empty in the table.
           cells[column.key] = line.lineNumber ?? '';
         } else {
           cells[column.key] = formatCellValue(line[column.key as keyof F3XFormDetailLine], column.format);
@@ -205,11 +211,7 @@ export default function F3XReport({ data }: F3XReportProps) {
     const cells: Record<string, ReactNode> = {};
     columns.forEach((column) => {
       if (column.key === 'lineNumber') {
-        cells[column.key] = (
-          <span style={{ fontWeight: 'bold' }}>
-            {line.lineNumber || ''}
-          </span>
-        );
+        cells[column.key] = <span style={{ fontWeight: 'bold' }}>{line.lineNumber || ''}</span>;
       } else if (column.key === 'lineDescription') {
         cells[column.key] = buildDescriptionCell(line);
       } else {
