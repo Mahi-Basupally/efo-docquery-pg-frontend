@@ -41,7 +41,7 @@ export interface CandidateDetailResponse {
 export const candidateApi = {
   // Search candidates - returns only ID and name
   searchCandidates: async (query: string, limit = 5, offset = 0): Promise<CandidateSearchResponse> => {
-    const response = await apiClient.get<CandidateSearchResponse>('/candidate/search', {
+    const response = await apiClient.get<CandidateSearchResponse>('/candidates/search', {
       params: { query, limit, offset },
     });
     return response.data;
@@ -49,7 +49,7 @@ export const candidateApi = {
 
   // Get candidate by ID - returns full details
   getCandidateById: async (filerid: string): Promise<CandidateDetail> => {
-    const response = await apiClient.get<CandidateDetailResponse>(`/candidate/${filerid}`);
+    const response = await apiClient.get<CandidateDetailResponse>(`/candidates/${filerid}`);
     return response.data.data;
   },
 };

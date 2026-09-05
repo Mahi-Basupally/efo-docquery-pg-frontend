@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import axios from 'axios';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { FileText, Download, AlertCircle } from 'lucide-react';
 import { committeeApi, CommitteeDetail } from '@/lib/api/committees';
@@ -68,14 +69,16 @@ export default function CommitteeFormsPage() {
   const [candidateDetail, setCandidateDetail] = useState<CandidateDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [entityNotFound, setEntityNotFound] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalRecords, setTotalRecords] = useState(0);
 
   const isCommittee = isCommitteeId(candCmteId);
 
-  // Fetch entity details
-  const fetchEntityDetails = useCallback(async () => {
+  // Fetch entity details. Returns true when the ID doesn't exist (404) so
+  // the caller can skip fetching forms for it and show a not-found state.
+  const fetchEntityDetails = useCallback(async (): Promise<boolean> => {
     try {
       if (isCommittee) {
         const result = await committeeApi.getCommitteeById(candCmteId);
@@ -84,8 +87,15 @@ export default function CommitteeFormsPage() {
         const result = await candidateApi.getCandidateById(candCmteId);
         setCandidateDetail(result);
       }
+      setEntityNotFound(false);
+      return false;
     } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        setEntityNotFound(true);
+        return true;
+      }
       console.warn('Error fetching entity details:', err);
+      return false;
     }
   }, [candCmteId, isCommittee]);
 
@@ -108,10 +118,22 @@ export default function CommitteeFormsPage() {
 
   // Effects
   useEffect(() => {
-    if (candCmteId) {
-      fetchEntityDetails();
-      fetchForms();
-    }
+    if (!candCmteId) return;
+
+    let cancelled = false;
+    (async () => {
+      const notFound = await fetchEntityDetails();
+      if (cancelled) return;
+      if (notFound) {
+        setLoading(false);
+      } else {
+        fetchForms();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [candCmteId, fetchEntityDetails, fetchForms]);
 
   // Update document title
@@ -354,7 +376,24 @@ export default function CommitteeFormsPage() {
             </ul>
           </nav>
 
-          {error && (
+          {entityNotFound && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+              <div className="flex items-center">
+                <AlertCircle className="w-6 h-6 text-yellow-600 mr-3" />
+                <div>
+                  <h3 className="text-lg font-semibold text-yellow-900">
+                    {isCommittee ? 'Committee' : 'Candidate'} Not Found
+                  </h3>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    No {isCommittee ? 'committee' : 'candidate'} exists with ID &quot;{candCmteId}&quot;.
+                    Please check the ID and try again.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!entityNotFound && error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
               <div className="flex items-center">
                 <AlertCircle className="w-6 h-6 text-red-600 mr-3" />
@@ -366,7 +405,7 @@ export default function CommitteeFormsPage() {
             </div>
           )}
 
-          {loading && (
+          {!entityNotFound && loading && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
               <div className="flex flex-col items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
@@ -375,7 +414,7 @@ export default function CommitteeFormsPage() {
             </div>
           )}
 
-          {!loading && !error && forms.length === 0 && (
+          {!entityNotFound && !loading && !error && forms.length === 0 && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
               <div className="text-center">
                 <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -385,7 +424,7 @@ export default function CommitteeFormsPage() {
             </div>
           )}
 
-          {!loading && !error && forms.length > 0 && (
+          {!entityNotFound && !loading && !error && forms.length > 0 && (
             <section id="section-1">
               <h2 id="section-1-heading" className="text-lg font-semibold text-gray-900">
                 Electronic Filings

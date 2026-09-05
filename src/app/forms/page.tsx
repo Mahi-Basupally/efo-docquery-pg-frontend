@@ -2,8 +2,10 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { committeeApi } from '@/lib/api/committees';
-import { candidateApi } from '@/lib/api/candidates';
+import axios from 'axios';
+import { apiClient } from '@/lib/api/client';
+import { committeeApi, CommitteeSearchResponse } from '@/lib/api/committees';
+import { candidateApi, CandidateSearchResponse } from '@/lib/api/candidates';
 
 type SearchResult = {
   id: string;
@@ -21,6 +23,7 @@ export default function FormsSearchPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -45,32 +48,45 @@ export default function FormsSearchPage() {
     };
   };
 
+  // A 404 from the search endpoints means "no matches" and should not be
+  // treated as a failure - only genuine errors (5xx, network, etc.) should.
+  const isNotFound = (err: unknown) =>
+    axios.isAxiosError(err) && err.response?.status === 404;
+
   const searchCommittees = async (query: string) => {
     if (query.length < 2) {
       setSearchResults([]);
       setShowSearchResults(false);
+      setSearchError(null);
       return;
     }
-
+ 
     setSearchLoading(true);
+    setSearchError(null);
     try {
       // Search both committees and candidates in parallel
       const [committeeResponse, candidateResponse] = await Promise.all([
-        committeeApi.searchCommittees(query, 5).catch(() => ({ data: [] })),
-        candidateApi.searchCandidates(query, 5).catch(() => ({ data: [] })),
+        committeeApi.searchCommittees(query, 5).catch((err): CommitteeSearchResponse => {
+          if (isNotFound(err)) return { data: [], meta: { count: 0, limit: 5, offset: 0, query } };
+          throw err;
+        }),
+        candidateApi.searchCandidates(query, 5).catch((err): CandidateSearchResponse => {
+          if (isNotFound(err)) return { data: [], meta: { count: 0, limit: 5, offset: 0, query } };
+          throw err;
+        }),
       ]);
 
       // Combine results - committees first, then candidates
       const combinedResults: SearchResult[] = [
         ...committeeResponse.data.map(c => ({
-          id: c.committeeId || c.committee_id,
-          name: c.committeeName || c.committee_name,
+          id: c.committeeId || c.committeeId,
+          name: c.committeeName || c.committeeName,
           type: 'committee' as const,
-          committeeFilingFrequency: c.committeeFilingFrequency || c.committee_filing_frequency,
+          committeeFilingFrequency: c.committeeFilingFrequency || c.committeeFilingFrequency,
         })),
         ...candidateResponse.data.map(c => ({
-          id: c.candidateId || c.candidate_id,
-          name: c.candidateName || c.candidate_name,
+          id: c.candidateId || c.candidateId,
+          name: c.candidateName || c.candidateName,
           type: 'candidate' as const,
         })),
       ];
@@ -78,7 +94,12 @@ export default function FormsSearchPage() {
       setSearchResults(combinedResults);
       setShowSearchResults(true);
     } catch (err) {
-      console.error('Search error:', err);
+      // console.warn (not .error) - this is already surfaced to the user via
+      // searchError below, and Next's dev overlay intercepts console.error.
+      console.warn('Search error:', err);
+      setSearchResults([]);
+      setSearchError(apiClient.handleError(err));
+      setShowSearchResults(true);
     } finally {
       setSearchLoading(false);
     }
@@ -159,6 +180,8 @@ export default function FormsSearchPage() {
                     <div role="presentation" className="tt-dataset tt-dataset-committee">
                       {searchLoading ? (
                         <span className="tt-suggestion__header">Searching...</span>
+                      ) : searchError ? (
+                        <span className="tt-suggestion__header is-terminated-status">{searchError}</span>
                       ) : searchResults.length === 0 && searchQuery.length >= 2 ? (
                         <span className="tt-suggestion__header">No results found for &quot;{searchQuery}&quot;</span>
                       ) : (
@@ -216,7 +239,7 @@ export default function FormsSearchPage() {
                 </div>
 
                 <span className="t-note t-sans search__example">
-                  Examples: Obama for America; C00431445; Bush, George W.; P00003335; or enter an image number for a filing.
+                  Examples: John Doe for America; C00123456; John, Doe; P00001234; or enter an image number for a filing.
                 </span>
               </div>
               <p></p><p></p><p></p>
@@ -225,8 +248,8 @@ export default function FormsSearchPage() {
               <div className="example--primary">
                 <ul>
                   <li>• Enter at least 2 characters to search</li>
-                  <li>• Search by committee name (e.g., &quot;Biden for President&quot;)</li>
-                  <li>• Search by committee ID (e.g., &quot;C00703975&quot;)</li>
+                  <li>• Search by committee name (e.g., &quot;John Doe for President&quot;)</li>
+                  <li>• Search by committee ID (e.g., &quot;C00123456&quot;)</li>
                   <li>• Search by treasurer name</li>
                   <li>• Results update as you type</li>
                 </ul>
