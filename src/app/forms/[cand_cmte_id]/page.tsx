@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
 import axios from 'axios';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { FileText, Download, AlertCircle } from 'lucide-react';
@@ -288,6 +289,26 @@ export default function CommitteeFormsPage() {
     );
   };
 
+  if (entityNotFound) {
+    return (
+      <div style={{ padding: '2rem' }}>
+        <div className="message message--error">
+          <h2 className="message__title">{isCommittee ? 'Committee' : 'Candidate'} not found</h2>
+          <p>{isCommittee ? 'Committee' : 'Candidate'} ID: {candCmteId}</p>
+          <div className="message--alert__bottom">
+            <ul className="list--buttons">
+              <li>
+                <Link className="button--standard" href="/forms">
+                  Back to search
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <Breadcrumbs items={breadcrumbItems} />
@@ -343,6 +364,18 @@ export default function CommitteeFormsPage() {
           </div>
         </header>
 
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+            <div className="flex items-center">
+              <AlertCircle className="w-6 h-6 text-red-600 mr-3" />
+              <div>
+                <h3 className="text-lg font-semibold text-red-900">Error Loading Forms</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="data-container__wrapper">
           <nav className="sidebar side-nav-alt">
             <ul className="tablist" role="tablist" data-name="tab">
@@ -376,36 +409,7 @@ export default function CommitteeFormsPage() {
             </ul>
           </nav>
 
-          {entityNotFound && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-              <div className="flex items-center">
-                <AlertCircle className="w-6 h-6 text-yellow-600 mr-3" />
-                <div>
-                  <h3 className="text-lg font-semibold text-yellow-900">
-                    {isCommittee ? 'Committee' : 'Candidate'} Not Found
-                  </h3>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    No {isCommittee ? 'committee' : 'candidate'} exists with ID &quot;{candCmteId}&quot;.
-                    Please check the ID and try again.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {!entityNotFound && error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
-              <div className="flex items-center">
-                <AlertCircle className="w-6 h-6 text-red-600 mr-3" />
-                <div>
-                  <h3 className="text-lg font-semibold text-red-900">Error Loading Forms</h3>
-                  <p className="text-sm text-red-700 mt-1">{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {!entityNotFound && loading && (
+          {loading && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
               <div className="flex flex-col items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
@@ -414,7 +418,7 @@ export default function CommitteeFormsPage() {
             </div>
           )}
 
-          {!entityNotFound && !loading && !error && forms.length === 0 && (
+          {!loading && !error && forms.length === 0 && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
               <div className="text-center">
                 <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -424,7 +428,7 @@ export default function CommitteeFormsPage() {
             </div>
           )}
 
-          {!entityNotFound && !loading && !error && forms.length > 0 && (
+          {!loading && !error && forms.length > 0 && (
             <section id="section-1">
               <h2 id="section-1-heading" className="text-lg font-semibold text-gray-900">
                 Electronic Filings

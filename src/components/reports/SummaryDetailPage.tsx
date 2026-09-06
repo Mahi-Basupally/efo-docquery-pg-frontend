@@ -538,6 +538,13 @@ export default function ReportDetailPage() {
     { label: 'Summary', href: `/forms/${displayId}/${repId}` },
   ];
 
+  const formTypeMap = {  F: 'FORM',  
+    F3X: 'FORM 3X', F3: 'FORM 3',F3P: 'FORM 3P', F3PS: 'FORM 3PS', F1: 'FORM 1',F1M: 'FORM 1M',
+    F2: 'FORM 2', F4: 'FORM 4', F5: 'FORM 5', F6: 'FORM 6', F7: 'FORM 7', F8: 'FORM 8', F9: 'FORM 9',
+    F99: 'FORM 99',
+
+  };
+
   return (
     <>
       <Breadcrumbs items={breadcrumbItems} />
@@ -550,7 +557,7 @@ export default function ReportDetailPage() {
         <div className="data-container__wrapper">
           {reportId && <ScheduleSidenav reportId={String(reportId)} />}
           <section id="section-1" className="tab-content" role="tabpanel">
-            <h2 id="section-1-heading">{metadata?.formType || 'FORM'} (FEC-{reportId})</h2>
+            <h2 id="section-1-heading">  {formTypeMap[metadata?.formType] || metadata?.formType || 'FORM'} (FEC-{reportId})</h2>
             <div className="slab slab--inline slab--neutral u-padding--left u-padding--right">
               <div className="row content__section">
                 <div id="report" className="entity__figure row" style={{ overflowX: 'visible' }}>
