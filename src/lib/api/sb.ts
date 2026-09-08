@@ -1,86 +1,77 @@
 import { apiClient } from './client';
-import {
-  CommitteeDetails,
-  PaginationMeta,
-  ScheduleColumn,
-  ErrorResponse,
-  PaginationParams
-} from './types';
+import type { PaginationMeta } from './types';
 
-// Schedule B transaction data - dynamic keys based on camelCase field names
-export type ScheduleBTransaction = Record<string, string | number | null>;
-
-// Response metadata
-export interface ScheduleBMeta {
-  reportId: string;
-  lineNumber: string;
-  columns: ScheduleColumn[];
-  committeeDetails: CommitteeDetails;
-  pagination: PaginationMeta;
+export interface ScheduleBTransaction {
+  filerCommitteeId?: string | null;
+  transactionId?: string | null;
+  backReferenceTransactionId?: string | null;
+  backReferenceScheduleName?: string | null;
+  entityType?: string | null;
+  entityName?: string | null;
+  entityLastName?: string | null;
+  entityFirstName?: string | null;
+  entityMiddleName?: string | null;
+  entityPrefix?: string | null;
+  entitySuffix?: string | null;
+  streetAddress1?: string | null;
+  streetAddress2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  electionType?: string | null;
+  electionDescription?: string | null;
+  disbursementDate?: string | null;
+  amount?: string | number | null;
+  scheduleAReferenceAmount?: string | number | null;
+  transactionDescription?: string | null;
+  cat_code?: string | null;
+  other_comid?: string | null;
+  beneficiaryCommitteeName?: string | null;
+  other_canid?: string | null;
+  can_name?: string | null;
+  can_fname?: string | null;
+  can_mname?: string | null;
+  can_prefix?: string | null;
+  can_suffix?: string | null;
+  can_off?: string | null;
+  can_state?: string | null;
+  can_dist?: string | number | null;
+  other_name?: string | null;
+  other_str1?: string | null;
+  other_str2?: string | null;
+  other_city?: string | null;
+  other_state?: string | null;
+  other_zip?: string | null;
+  memoCode?: string | null;
+  memoText?: string | null;
+  nc_softacct?: string | null;
+  imageno?: number | null;
+  [key: string]: unknown;
 }
 
-// Main response interface
 export interface ScheduleBResponse {
   data: ScheduleBTransaction[];
-  meta: ScheduleBMeta;
-}
-
-// Column metadata only response
-export interface ScheduleBColumnsResponse {
-  data: ScheduleColumn[];
   meta: {
-    reportId: string;
+    reportId: string | number;
+    schedule: string;
     lineNumber: string;
-    totalColumns: number;
+    pagination: PaginationMeta;
   };
 }
 
-// Re-export shared types for convenience
-export type { CommitteeDetails, PaginationMeta, ScheduleColumn, ErrorResponse, PaginationParams };
-
-// Schedule B API methods
 export const scheduleBApi = {
-  /**
-   * Get Schedule B transaction data with pagination
-   * @param repid - Report ID
-   * @param lineNum - Line number (e.g., "17", "18")
-   * @param params - Optional pagination parameters (page, perPage)
-   * @returns Promise with Schedule B transaction data and metadata
-   */
   getScheduleBData: async (
     repid: string,
     lineNum: string,
-    params?: PaginationParams
+    params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleBResponse> => {
     const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.set('page', String(params.page));
+    if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    if (params?.page) {
-      queryParams.append('page', params.page.toString());
-    }
-
-    if (params?.perPage) {
-      queryParams.append('perPage', params.perPage.toString());
-    }
-
-    const queryString = queryParams.toString();
-    const url = `/sb/${repid}/${lineNum}${queryString ? `?${queryString}` : ''}`;
-
-    const response = await apiClient.get<ScheduleBResponse>(url);
-    return response.data;
-  },
-
-  /**
-   * Get column metadata for Schedule B transactions
-   * @param repid - Report ID
-   * @param lineNum - Line number (e.g., "17", "18")
-   * @returns Promise with column metadata
-   */
-  getScheduleBColumns: async (
-    repid: string,
-    lineNum: string
-  ): Promise<ScheduleBColumnsResponse> => {
-    const response = await apiClient.get<ScheduleBColumnsResponse>(
-      `/sb/${repid}/${lineNum}/columns`
+    const query = queryParams.toString();
+    const response = await apiClient.get<ScheduleBResponse>(
+      `/sb/${repid}/${lineNum}${query ? `?${query}` : ''}`
     );
     return response.data;
   },
