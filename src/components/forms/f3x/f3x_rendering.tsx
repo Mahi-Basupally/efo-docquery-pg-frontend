@@ -3,6 +3,8 @@
 import { ReactNode, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import ReportTable, { ReportTableColumn, ReportTableRow } from '@/components/tables/ReportTable';
+import SARenderer from '@/components/forms/schedules/sa/sa_rendering';
+import SBRenderer from '@/components/forms/schedules/sb/sb_rendering';
 import type { F3XFinancialLine, F3XFormDetailLine, F3XLine, F3XReportData, F3XSection } from '@/lib/api/f3x';
 import { F3X_LINE_DEFINITIONS, F3X_SECTION_DEFINITIONS } from './f3xDefinition';
 
@@ -86,6 +88,7 @@ export default function F3XReport({ data }: F3XReportProps) {
     });
     return initial;
   });
+  const [activeSchedule, setActiveSchedule] = useState<{ type: 'SA' | 'SB'; lineNumber: string } | null>(null);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
@@ -146,6 +149,15 @@ export default function F3XReport({ data }: F3XReportProps) {
     }, sectionTarget ? 200 : 50);
   };
 
+  const openSchedule = (scheduleType?: string, lineNumber?: string) => {
+    if ((scheduleType !== 'SA' && scheduleType !== 'SB') || !lineNumber) return;
+    setActiveSchedule((previous) =>
+      previous?.type === scheduleType && previous.lineNumber === lineNumber
+        ? null
+        : { type: scheduleType, lineNumber }
+    );
+  };
+
   const renderLinkToButton = (linkId?: string) => {
     if (!linkId) return null;
     return (
@@ -157,6 +169,22 @@ export default function F3XReport({ data }: F3XReportProps) {
         style={{ padding: '2px 6px', fontSize: '12px' }}
       >
         <ExternalLink size={14} className="inline" />
+      </button>
+    );
+  };
+
+  const renderScheduleButton = (scheduleType?: string, lineNumber?: string) => {
+    if ((scheduleType !== 'SA' && scheduleType !== 'SB') || !lineNumber) return null;
+    const active = activeSchedule?.type === scheduleType && activeSchedule.lineNumber === lineNumber;
+    return (
+      <button
+        type="button"
+        onClick={() => openSchedule(scheduleType, lineNumber)}
+        className="ml-2 inline-flex items-center rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        aria-expanded={active}
+        title={`${active ? 'Hide' : 'Open'} Schedule ${scheduleType}`}
+      >
+        Schedule {scheduleType}
       </button>
     );
   };
@@ -174,6 +202,7 @@ export default function F3XReport({ data }: F3XReportProps) {
           {isFinancialLine(line) && getIndentPadding(definition.indent)}
           {description || '-'}
           {isFinancialLine(line) && renderLinkToButton(definition.linkId)}
+          {isFinancialLine(line) && renderScheduleButton(definition.scheduleType, line.lineNumber)}
         </span>
         {isFinancialLine(line) && definition.calculation && (
           <>
@@ -188,14 +217,6 @@ export default function F3XReport({ data }: F3XReportProps) {
             <br />
             <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
               {getIndentPadding(definition.indent)}({definition.note})
-            </span>
-          </>
-        )}
-        {isFinancialLine(line) && definition.hasSchedule && definition.scheduleType && (
-          <>
-            <br />
-            <span style={{ fontSize: '0.85em', color: '#6b7280' }}>
-              Schedule {definition.scheduleType}
             </span>
           </>
         )}
@@ -274,5 +295,21 @@ export default function F3XReport({ data }: F3XReportProps) {
     );
   }
 
-  return <>{orderedSections.map(renderSection)}</>;
+  const reportId = data.metadata?.reportId;
+
+  return (
+    <>
+      {orderedSections.map(renderSection)}
+
+      {activeSchedule && reportId !== undefined && (
+        <div className="mt-2 mb-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
+          {activeSchedule.type === 'SA' ? (
+            <SARenderer reportId={String(reportId)} lineNumber={activeSchedule.lineNumber} />
+          ) : (
+            <SBRenderer reportId={String(reportId)} lineNumber={activeSchedule.lineNumber} />
+          )}
+        </div>
+      )}
+    </>
+  );
 }
