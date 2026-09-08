@@ -16,7 +16,10 @@ const SB_COLUMNS: ScheduleColumnConfig[] = [
     field: 'entityName',
     label: 'Disbursement To',
     width: '16%',
-    render: (row) => row.entityName ?? row.disbursementName ?? [row.entityFirstName, row.entityLastName].filter(Boolean).join(' ') || '-',
+    render: (row) =>
+      row.entityName ??
+      row.disbursementName ??
+      ([row.entityFirstName, row.entityLastName].filter(Boolean).join(' ') || '-'),
   },
   { key: 'streetAddress1', field: 'streetAddress1', label: 'Street 1', width: '13%' },
   { key: 'streetAddress2', field: 'streetAddress2', label: 'Street 2', width: '12%' },
