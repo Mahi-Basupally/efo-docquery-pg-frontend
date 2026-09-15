@@ -12,7 +12,8 @@ export interface F3ReportProps {
  * existing sections-based response during the backend rollout. No shared
  * renderer changes are required for other forms.
  */
-export type F3ReportData = FinancialReportData & {
+export type F3ReportData = Omit<FinancialReportData, 'sections'> & {
+  sections?: FinancialReportData['sections'];
   schemaVersion?: string;
   schemaType?: string;
   form?: { type?: string; title?: string; subTitle?: string; formType?: string };
@@ -41,25 +42,27 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const stableLineId = (value: unknown): string =>
   String(value ?? '').replace(/-order-\d+$/, '');
 
-const normalizeLine = (line: F3ApiLine): F3ApiLine => ({
+const normalizeFinancialLine = (line: F3ApiLine): F3ApiLine => ({
   ...line,
   lineId: stableLineId(line.lineId ?? line.id),
   lineNumber: line.lineNumber ?? line.line_number ?? '',
   lineDescription: line.lineDescription ?? line.label ?? line.description ?? '',
 });
 
-const normalizeLines = (lines: unknown): F3ApiLine[] =>
-  Array.isArray(lines) ? lines.filter(isRecord).map(normalizeLine) : [];
+const normalizeFinancialLines = (lines: unknown): F3ApiLine[] =>
+  Array.isArray(lines) ? lines.filter(isRecord).map(normalizeFinancialLine) : [];
 
 const section = (id: string, title: string, lines: unknown, subtitle = ''): F3ApiSection => ({
   id,
   title,
   subtitle,
-  lines: normalizeLines(lines),
+  lines: normalizeFinancialLines(lines),
 });
 
 const formDetailLines = (details: unknown): F3ApiLine[] => {
-  if (Array.isArray(details)) return normalizeLines(details);
+  if (Array.isArray(details)) {
+    return details.filter(isRecord).map(detail => ({ ...detail }));
+  }
   if (!isRecord(details)) return [];
 
   const labelMap: Record<string, string> = {
@@ -80,7 +83,6 @@ const formDetailLines = (details: unknown): F3ApiLine[] => {
   return Object.entries(details)
     .filter(([, value]) => value !== null && value !== undefined && value !== '')
     .map(([key, value]) => ({
-      lineId: `f3-detail-${key}`,
       lineNumber: '',
       label: labelMap[key] ?? key,
       value: typeof value === 'object' ? JSON.stringify(value) : value,
@@ -88,7 +90,7 @@ const formDetailLines = (details: unknown): F3ApiLine[] => {
 };
 
 const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
-  // Current/legacy response: already in the renderer contract.
+  // Current/legacy response: already in the shared renderer contract.
   if (Array.isArray(input.sections)) {
     return {
       metadata: input.metadata,
@@ -97,19 +99,23 @@ const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
         ...s,
         lines: s.lines.map(line =>
           'lineId' in line
-            ? normalizeLine(line as F3ApiLine) as typeof line
+            ? normalizeFinancialLine(line as F3ApiLine) as typeof line
             : line,
         ),
       })),
     };
   }
 
-  const api = input as F3ReportData;
-  const financialSections = api.financials?.sections ?? [];
+  const financialSections = input.financials?.sections ?? [];
   const sections: F3ApiSection[] = [];
 
-  if (api.formDetails) {
-    sections.push(section('formDetails', 'Form Details', formDetailLines(api.formDetails)));
+  if (input.formDetails) {
+    sections.push({
+      id: 'formDetails',
+      title: 'Form Details',
+      subtitle: '',
+      lines: formDetailLines(input.formDetails),
+    });
   }
 
   if (financialSections.length) {
@@ -117,25 +123,30 @@ const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
       id: s.id ?? '',
       title: s.title ?? s.id ?? '',
       subtitle: s.subtitle ?? '',
-      lines: normalizeLines(s.lines),
+      lines: normalizeFinancialLines(s.lines),
     })));
   } else {
-    if (api.receipts) sections.push(section('receipts', 'I. Receipts', api.receipts));
-    if (api.disbursements) sections.push(section('disbursements', 'II. Disbursements', api.disbursements));
-    if (api.cashSummary) sections.push(section('cashSummary', 'III. Cash Summary', api.cashSummary));
+    if (input.receipts) sections.push(section('receipts', 'I. Receipts', input.receipts));
+    if (input.disbursements) sections.push(section('disbursements', 'II. Disbursements', input.disbursements));
+    if (input.cashSummary) sections.push(section('cashSummary', 'III. Cash Summary', input.cashSummary));
   }
 
   return {
     metadata: {
-      formType: api.form?.type ?? api.form?.formType ?? 'F3',
-      reportId: api.report?.reportId as string | number | undefined,
-      formTitle: api.form?.title,
-      formSubTitle: api.form?.subTitle,
+      formType: input.form?.type ?? input.form?.formType ?? 'F3',
+      reportId: input.report?.reportId as string | number | undefined,
+      formTitle: input.form?.title,
+      formSubTitle: input.form?.subTitle,
     },
-    committee: api.committee,
+    committee: input.committee,
     sections: sections
       .filter(s => !!s.id && !!s.lines?.length)
-      .map(s => ({ id: s.id!, title: s.title ?? s.id!, subtitle: s.subtitle, lines: s.lines as never[] })),
+      .map(s => ({
+        id: s.id!,
+        title: s.title ?? s.id!,
+        subtitle: s.subtitle,
+        lines: s.lines as FinancialReportData['sections'][number]['lines'],
+      })),
   };
 };
 
