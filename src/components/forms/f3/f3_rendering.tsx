@@ -7,13 +7,6 @@ export interface F3ReportProps {
   data: F3ReportData;
 }
 
-/**
- * F3 API contract.
- *
- * The backend owns report data. F3-specific presentation metadata remains in
- * f3Definition.ts. This adapter converts the F3 API contract into the shared
- * FinancialReportRenderer contract without changing any other form.
- */
 export type F3ReportData = Omit<FinancialReportData, 'sections'> & {
   sections?: FinancialReportData['sections'];
   schemaVersion?: string;
@@ -148,89 +141,107 @@ const formatTreasurerName = (treasurer?: F3Treasurer): string => {
   return parts.length ? parts.join(' ') : '—';
 };
 
-const DetailItem = ({ label, value }: { label: string; value: string }) => (
-  <div className="min-w-0">
-    <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</dt>
-    <dd className="mt-1 break-words text-sm font-medium text-gray-900">{value}</dd>
-  </div>
+const FigureRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <tr>
+    <td className="w-1/4 align-top px-3 py-2 text-sm font-semibold text-gray-700">
+      {label}
+    </td>
+    <td className="align-top px-3 py-2 text-sm text-gray-900">
+      {children}
+    </td>
+  </tr>
 );
 
 const F3ReportHeader = ({ data }: { data: F3ReportData }) => {
   const committee = data.committee;
   const report = data.report;
   const address = committee?.address;
+  const treasurer = report?.treasurer;
 
-  const addressLine = [address?.street1, address?.street2]
+  const addressLine1 = [address?.street1, address?.street2]
     .filter(Boolean)
     .map(String)
     .join(', ');
-  const cityStateZip = [address?.city, address?.state, address?.zipCode]
+  const addressLine2 = [address?.city, address?.state, address?.zipCode]
     .filter(Boolean)
     .map(String)
     .join(', ')
     .replace(/, ([A-Z]{2}), /, ' $1 ');
 
+  const election =
+    report?.election?.state && report?.election?.district
+      ? `${report.election.state} - ${report.election.district}`
+      : displayValue(report?.election?.state ?? report?.election?.district);
+
+  const coveragePeriod = `${formatDate(report?.coveragePeriod?.from)} – ${formatDate(
+    report?.coveragePeriod?.through,
+  )}`;
+
   return (
-    <div className="mb-8 space-y-4" aria-label="F3 report details">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section className="rounded-md border border-gray-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-4 border-b border-gray-100 pb-2 text-base font-semibold text-gray-900">
-            Committee Details
-          </h3>
-          <dl className="grid grid-cols-1 gap-3">
-            <DetailItem label="Committee ID" value={displayValue(committee?.id)} />
-            <DetailItem label="Committee Name" value={displayValue(committee?.name)} />
-            <DetailItem label="Address" value={displayValue(addressLine)} />
-            <DetailItem label="City / State / ZIP" value={displayValue(cityStateZip)} />
+    <div className="entity__figure row mb-8">
+      <h3 className="heading--section mb-3 text-lg font-semibold text-gray-900">
+        Committee information
+      </h3>
+
+      <div className="overflow-x-auto">
+        <table className="t-sans w-full max-w-4xl border-collapse text-left">
+          <tbody>
+            <FigureRow label="Committee name:">
+              {displayValue(committee?.name)}
+            </FigureRow>
+
+            <FigureRow label="Mailing address:">
+              <span className="t-block block">{displayValue(addressLine1)}</span>
+              <span className="t-block block">{displayValue(addressLine2)}</span>
+            </FigureRow>
+
+            <FigureRow label="Treasurer:">
+              {formatTreasurerName(treasurer)}
+            </FigureRow>
+
+            <FigureRow label="Committee ID:">
+              {displayValue(committee?.id)}
+            </FigureRow>
+
+            <FigureRow label="Election:">
+              {election}
+            </FigureRow>
+
+            <FigureRow label="Report ID:">
+              {displayValue(report?.reportId)}
+            </FigureRow>
+
+            <FigureRow label="Report code:">
+              {displayValue(report?.reportCode ?? report?.reportType)}
+            </FigureRow>
+
+            <FigureRow label="Amendment:">
+              {displayValue(report?.amendmentIndicator)}
+            </FigureRow>
+
+            <FigureRow label="Filed date:">
+              {formatDate(report?.filedDate)}
+            </FigureRow>
+
+            <FigureRow label="Coverage period:">
+              {coveragePeriod}
+            </FigureRow>
+
+            <FigureRow label="Date signed:">
+              {formatDate(report?.dateSigned)}
+            </FigureRow>
+
             {committee?.changeOfAddress && (
-              <DetailItem label="Change of Address" value="Yes" />
+              <FigureRow label="Change of address:">Yes</FigureRow>
             )}
-          </dl>
-        </section>
-
-        <section className="rounded-md border border-gray-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-4 border-b border-gray-100 pb-2 text-base font-semibold text-gray-900">
-            Report Details
-          </h3>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <DetailItem label="Report ID" value={displayValue(report?.reportId)} />
-            <DetailItem label="Form" value={displayValue(data.form?.formType, 'F3')} />
-            <DetailItem label="Report Code" value={displayValue(report?.reportCode ?? report?.reportType)} />
-            <DetailItem label="Amendment" value={displayValue(report?.amendmentIndicator)} />
-            <DetailItem label="Filed Date" value={formatDate(report?.filedDate)} />
-            <DetailItem
-              label="Election"
-              value={
-                report?.election?.state && report?.election?.district
-                  ? `${report.election.state}-${report.election.district}`
-                  : displayValue(report?.election?.state ?? report?.election?.district)
-              }
-            />
-            <div className="col-span-2">
-              <DetailItem
-                label="Coverage Period"
-                value={`${formatDate(report?.coveragePeriod?.from)} – ${formatDate(report?.coveragePeriod?.through)}`}
-              />
-            </div>
-          </dl>
-        </section>
-
-        <section className="rounded-md border border-gray-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-4 border-b border-gray-100 pb-2 text-base font-semibold text-gray-900">
-            Treasurer Details
-          </h3>
-          <dl className="grid grid-cols-1 gap-3">
-            <DetailItem label="Treasurer" value={formatTreasurerName(report?.treasurer)} />
-            <DetailItem label="Date Signed" value={formatDate(report?.dateSigned)} />
-          </dl>
-        </section>
+          </tbody>
+        </table>
       </div>
     </div>
   );
 };
 
 const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
-  // Legacy/current sections-based response remains supported during rollout.
   if (Array.isArray(input.sections)) {
     return {
       metadata: input.metadata,
@@ -255,9 +266,6 @@ const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
   const financialSections = input.financials?.sections ?? [];
   const sections: F3ApiSection[] = [];
 
-  // Preferred F3 contract: each financial section is a top-level object with
-  // a lines[] array. This keeps the API JSON easy to consume and avoids a
-  // generic financials.sections wrapper.
   if (input.summary) {
     sections.push(section('summary', 'Summary', input.summary));
   }
@@ -274,7 +282,6 @@ const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
     sections.push(section('cashSummary', 'III. Cash Summary', input.cashSummary));
   }
 
-  // Backward compatibility for the intermediate backend contract.
   if (!sections.length && financialSections.length) {
     sections.push(
       ...financialSections.map(s => ({
