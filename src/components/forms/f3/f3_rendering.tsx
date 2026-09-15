@@ -8,24 +8,65 @@ export interface F3ReportProps {
 }
 
 /**
- * F3 accepts the new report contract while retaining compatibility with the
- * existing sections-based response during the backend rollout. No shared
- * renderer changes are required for other forms.
+ * F3 API contract.
+ *
+ * The backend owns report data. F3-specific presentation metadata remains in
+ * f3Definition.ts. This adapter converts the F3 API contract into the shared
+ * FinancialReportRenderer contract without changing any other form.
  */
 export type F3ReportData = Omit<FinancialReportData, 'sections'> & {
   sections?: FinancialReportData['sections'];
   schemaVersion?: string;
   schemaType?: string;
-  form?: { type?: string; title?: string; subTitle?: string; formType?: string };
-  report?: Record<string, unknown>;
-  formDetails?: Record<string, unknown> | Array<Record<string, unknown>>;
-  financials?: {
-    sections?: Array<F3ApiSection>;
+  form?: {
+    formType?: string;
+    formVersion?: string;
+    formName?: string;
+    formTitle?: string;
+    formSubTitle?: string;
+  };
+  report?: {
+    reportId?: string | number;
+    committeeId?: string;
+    reportNumber?: string | number | null;
+    reportCode?: string;
+    reportType?: string;
+    reportTypeDescription?: string;
+    amendmentIndicator?: string;
+    fileNumber?: string | number | null;
+    filedDate?: string | null;
+    coveragePeriod?: {
+      from?: string | null;
+      through?: string | null;
+    };
+    election?: {
+      state?: string | null;
+      district?: string | null;
+    };
+    treasurer?: {
+      firstName?: string | null;
+      middleName?: string | null;
+      lastName?: string | null;
+      prefix?: string | null;
+      suffix?: string | null;
+    };
+    dateSigned?: string | null;
     [key: string]: unknown;
   };
-  receipts?: Array<Record<string, unknown>>;
-  disbursements?: Array<Record<string, unknown>>;
-  cashSummary?: Array<Record<string, unknown>>;
+  committee?: {
+    id?: string;
+    name?: string;
+    address?: Record<string, string | null>;
+    changeOfAddress?: boolean;
+  };
+  summary?: F3ApiSection;
+  receipts?: F3ApiSection;
+  disbursements?: F3ApiSection;
+  cashSummary?: F3ApiSection;
+  financials?: {
+    sections?: F3ApiSection[];
+    [key: string]: unknown;
+  };
 };
 
 type F3ApiLine = Record<string, unknown>;
@@ -42,64 +83,59 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const stableLineId = (value: unknown): string =>
   String(value ?? '').replace(/-order-\d+$/, '');
 
-const normalizeFinancialLine = (line: F3ApiLine): F3ApiLine => ({
-  ...line,
-  lineId: stableLineId(line.lineId ?? line.id),
-  lineNumber: line.lineNumber ?? line.line_number ?? '',
-  lineDescription: line.lineDescription ?? line.label ?? line.description ?? '',
-});
+const normalizeFinancialLine = (line: F3ApiLine): F3ApiLine => {
+  const lineId = stableLineId(line.lineId ?? line.id);
+  const definition = F3_LINE_DEFINITIONS[lineId];
+
+  return {
+    ...line,
+    lineId,
+    lineNumber: line.lineNumber ?? line.line_number ?? '',
+    lineDescription:
+      line.lineDescription ??
+      line.label ??
+      line.description ??
+      definition?.label ??
+      '',
+  };
+};
 
 const normalizeFinancialLines = (lines: unknown): F3ApiLine[] =>
   Array.isArray(lines) ? lines.filter(isRecord).map(normalizeFinancialLine) : [];
 
-const section = (id: string, title: string, lines: unknown, subtitle = ''): F3ApiSection => ({
-  id,
-  title,
-  subtitle,
-  lines: normalizeFinancialLines(lines),
-});
+const section = (
+  id: string,
+  title: string,
+  source: unknown,
+  subtitle = '',
+): F3ApiSection => {
+  const lines = isRecord(source) ? source.lines : source;
 
-const formDetailLines = (details: unknown): F3ApiLine[] => {
-  if (Array.isArray(details)) {
-    return details.filter(isRecord).map(detail => ({ ...detail }));
-  }
-  if (!isRecord(details)) return [];
-
-  const labelMap: Record<string, string> = {
-    committeeName: 'Committee Name',
-    committeeId: 'FEC Committee ID',
-    candidateId: 'Candidate ID',
-    candidateName: 'Candidate Name',
-    electionState: 'Election State',
-    electionDistrict: 'Election District',
-    treasurerName: 'Treasurer',
-    dateSigned: 'Date Signed',
-    filedDate: 'Filed Date',
-    reportType: 'Report Type',
-    amendmentIndicator: 'Amendment Indicator',
-    coveragePeriod: 'Coverage Period',
+  return {
+    id,
+    title,
+    subtitle,
+    lines: normalizeFinancialLines(lines),
   };
-
-  return Object.entries(details)
-    .filter(([, value]) => value !== null && value !== undefined && value !== '')
-    .map(([key, value]) => ({
-      lineNumber: '',
-      label: labelMap[key] ?? key,
-      value: typeof value === 'object' ? JSON.stringify(value) : value,
-    }));
 };
 
 const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
-  // Current/legacy response: already in the shared renderer contract.
+  // Legacy/current sections-based response remains supported during rollout.
   if (Array.isArray(input.sections)) {
     return {
       metadata: input.metadata,
-      committee: input.committee,
+      committee: input.committee
+        ? {
+            id: input.committee.id,
+            name: input.committee.name,
+            address: input.committee.address as Record<string, string> | undefined,
+          }
+        : undefined,
       sections: input.sections.map(s => ({
         ...s,
         lines: s.lines.map(line =>
           'lineId' in line
-            ? normalizeFinancialLine(line as F3ApiLine) as typeof line
+            ? (normalizeFinancialLine(line as F3ApiLine) as typeof line)
             : line,
         ),
       })),
@@ -109,36 +145,57 @@ const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
   const financialSections = input.financials?.sections ?? [];
   const sections: F3ApiSection[] = [];
 
-  if (input.formDetails) {
-    sections.push({
-      id: 'formDetails',
-      title: 'Form Details',
-      subtitle: '',
-      lines: formDetailLines(input.formDetails),
-    });
+  // Preferred F3 contract: each financial section is a top-level object with
+  // a lines[] array. This keeps the API JSON easy to consume and avoids a
+  // generic financials.sections wrapper.
+  if (input.summary) {
+    sections.push(section('summary', 'Summary', input.summary));
   }
 
-  if (financialSections.length) {
-    sections.push(...financialSections.map(s => ({
-      id: s.id ?? '',
-      title: s.title ?? s.id ?? '',
-      subtitle: s.subtitle ?? '',
-      lines: normalizeFinancialLines(s.lines),
-    })));
-  } else {
-    if (input.receipts) sections.push(section('receipts', 'I. Receipts', input.receipts));
-    if (input.disbursements) sections.push(section('disbursements', 'II. Disbursements', input.disbursements));
-    if (input.cashSummary) sections.push(section('cashSummary', 'III. Cash Summary', input.cashSummary));
+  if (input.receipts) {
+    sections.push(section('receipts', 'I. Receipts', input.receipts));
   }
+
+  if (input.disbursements) {
+    sections.push(section('disbursements', 'II. Disbursements', input.disbursements));
+  }
+
+  if (input.cashSummary) {
+    sections.push(section('cashSummary', 'III. Cash Summary', input.cashSummary));
+  }
+
+  // Backward compatibility for the intermediate backend contract.
+  if (!sections.length && financialSections.length) {
+    sections.push(
+      ...financialSections.map(s => ({
+        id: s.id ?? '',
+        title: s.title ?? s.id ?? '',
+        subtitle: s.subtitle ?? '',
+        lines: normalizeFinancialLines(s.lines),
+      })),
+    );
+  }
+
+  const formType = input.form?.formType ?? input.form?.formName ?? 'F3';
+  const reportId = input.report?.reportId;
 
   return {
     metadata: {
-      formType: input.form?.type ?? input.form?.formType ?? 'F3',
-      reportId: input.report?.reportId as string | number | undefined,
-      formTitle: input.form?.title,
-      formSubTitle: input.form?.subTitle,
+      formType,
+      reportId,
+      formTitle:
+        input.form?.formTitle ??
+        input.form?.formName ??
+        'Report of Receipts and Disbursements',
+      formSubTitle: input.form?.formSubTitle ?? 'For An Authorized Committee',
     },
-    committee: input.committee,
+    committee: input.committee
+      ? {
+          id: input.committee.id,
+          name: input.committee.name,
+          address: input.committee.address as Record<string, string> | undefined,
+        }
+      : undefined,
     sections: sections
       .filter(s => !!s.id && !!s.lines?.length)
       .map(s => ({
@@ -152,6 +209,7 @@ const normalizeF3Data = (input: F3ReportData): FinancialReportData => {
 
 export default function F3Report({ data }: F3ReportProps) {
   const normalized = normalizeF3Data(data);
+
   return (
     <FinancialReportRenderer
       data={normalized}
