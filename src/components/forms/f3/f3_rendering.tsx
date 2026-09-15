@@ -160,7 +160,8 @@ const formatTreasurerName = (treasurer?: F3Treasurer): string => {
 };
 
 const committeeColumns: ReportTableColumn[] = [
-  { key: 'label', label: 'Description', align: 'left', width: '35%' },
+  { key: 'number', label: '', align: 'center', width: '6%' },
+  { key: 'label', label: 'Description', align: 'left', width: '29%' },
   { key: 'value', label: 'Value', align: 'left', width: '65%' },
 ];
 
@@ -189,15 +190,18 @@ const F3ReportHeader = ({ data }: { data: F3ReportData }) => {
     report?.coveragePeriod?.through,
   )}`;
 
+  // These numbers are FEC-style presentation numbers for the header only.
+  // They are intentionally not part of the API contract.
   const rows: ReportTableRow[] = [
     {
       id: 'committee-name',
-      cells: { label: 'Committee name:', value: displayValue(committee?.name) },
+      cells: { number: '1', label: 'Committee name:', value: displayValue(committee?.name) },
     },
     {
       id: 'mailing-address',
       cells: {
-        label: 'Mailing address:',
+        number: '',
+        label: 'Address:',
         value: (
           <>
             <span className="block">{displayValue(addressLine1)}</span>
@@ -207,47 +211,55 @@ const F3ReportHeader = ({ data }: { data: F3ReportData }) => {
       },
     },
     {
-      id: 'treasurer',
-      cells: { label: 'Treasurer:', value: formatTreasurerName(treasurer) },
-    },
-    {
       id: 'committee-id',
-      cells: { label: 'Committee ID:', value: displayValue(committee?.id) },
-    },
-    {
-      id: 'election',
-      cells: { label: 'Election:', value: election },
-    },
-    {
-      id: 'report-id',
-      cells: { label: 'Report ID:', value: displayValue(report?.reportId) },
-    },
-    {
-      id: 'report-code',
-      cells: { label: 'Report code:', value: displayValue(report?.reportCode ?? report?.reportType) },
+      cells: { number: '2', label: 'FEC Committee ID:', value: displayValue(committee?.id) },
     },
     {
       id: 'amendment',
-      cells: { label: 'Amendment:', value: displayValue(report?.amendmentIndicator) },
+      cells: {
+        number: '3',
+        label: 'Is This Report An Amendment:',
+        value: report?.amendmentIndicator === 'Y' ? 'Yes' : 'No',
+      },
     },
     {
-      id: 'filed-date',
-      cells: { label: 'Filed date:', value: formatDate(report?.filedDate) },
+      id: 'report-type',
+      cells: {
+        number: '4',
+        label: 'Report Type:',
+        value: displayValue(report?.reportTypeDescription ?? report?.reportCode ?? report?.reportType),
+      },
     },
     {
       id: 'coverage-period',
-      cells: { label: 'Coverage period:', value: coveragePeriod },
+      cells: { number: '5', label: 'Coverage Period:', value: coveragePeriod },
+    },
+    {
+      id: 'multicandidate-status',
+      cells: {
+        number: '',
+        label: 'Multicandidate Committee Status:',
+        value: displayValue(data.report?.['multicandidateStatus']),
+      },
+    },
+    {
+      id: 'treasurer',
+      cells: { number: '', label: 'Treasurer:', value: formatTreasurerName(treasurer) },
     },
     {
       id: 'date-signed',
-      cells: { label: 'Date signed:', value: formatDate(report?.dateSigned) },
+      cells: { number: '', label: 'Date Signed:', value: formatDate(report?.dateSigned) },
+    },
+    {
+      id: 'filed-date',
+      cells: { number: '', label: 'Filed Date:', value: formatDate(report?.filedDate) },
     },
   ];
 
   if (committee?.changeOfAddress) {
     rows.push({
       id: 'change-of-address',
-      cells: { label: 'Change of address:', value: 'Yes' },
+      cells: { number: '', label: 'Change of Address:', value: 'Yes' },
     });
   }
 
