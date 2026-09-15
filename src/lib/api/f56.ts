@@ -1,72 +1,55 @@
-import { API_BASE_URL } from './config';
+import { apiClient } from './client';
+import type { PaginationMeta } from './types';
 
-export interface F56Column {
-  apiFieldName: string;
-  description: string;
-  position: number;
-}
-
-export interface F56CommitteeDetails {
-  candidateFirstName: string | null;
-  candidateLastName: string | null;
-  candidateMiddleName: string | null;
-  candidatePrefixName: string | nul;
-  candidateSuffixName: string | null;
-  city: string;
-  committeeId: string;
-  committeeName: string | null;
-  entity: string | null;
-  filingType: string;
-  formType: string;
-  reportId: number;
-  state: string;
-  streetAddress1: string;
-  streetAddress2: string | null;
-  zipCode: string;
-}
-
-export interface F56Pagination {
-  hasNext: boolean;
-  hasPrev: boolean;
-  page: number;
-  perPage: number;
-  totalPages: number;
-  totalRecords: number;
-}
-
-export interface F56Meta {
-  columns: F56Column[];
-  committeeDetails: F56CommitteeDetails;
-  lineNumber: string;
-  pagination: F56Pagination;
-  reportId: string;
+export interface F56Transaction {
+  entity?: string | null;
+  lastName?: string | null;
+  firstName?: string | null;
+  middleName?: string | null;
+  prefix?: string | null;
+  suffix?: string | null;
+  streetAddress1?: string | null;
+  streetAddress2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  employer?: string | null;
+  occupation?: string | null;
+  contributionDate?: string | null;
+  amount?: string | number | null;
+  payeeCandidateId?: string | null;
+  payeeCommitteeId?: string | null;
+  [key: string]: unknown;
 }
 
 export interface F56Response {
-  data: Record<string, any>[];
-  meta: F56Meta;
+  data: F56Transaction[];
+  meta: {
+    reportId: string | number;
+    committeeId: string | null;
+    schedule: string;
+    lineNumber: string;
+    pagination: PaginationMeta;
+  };
 }
 
 export const f56Api = {
+  // F56 has no real line number (see f56_service.py's FIXED_LINE_NUMBER) -
+  // calls the line-less form of the endpoint directly, same as h1Api.
   getF56Data: async (
-    repId: string,
-    lineNum: string,
+    repid: string,
     params: { page?: number; perPage?: number } = {}
   ): Promise<F56Response> => {
-    const { page = 1, perPage = 50 } = params;
-    const queryParams = new URLSearchParams({
-      page: page.toString(),
-      perPage: perPage.toString(),
-    });
+    const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.set('page', String(params.page));
+    if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    const response = await fetch(
-      `${API_BASE_URL}/f56/${repId}/${lineNum}?${queryParams}`
+    const query = queryParams.toString();
+    const response = await apiClient.get<F56Response>(
+      `/reports/${repid}/schedules/F56${query ? `?${query}` : ''}`
     );
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch F56 data: ${response.statusText}`);
-    }
-
-    return response.json();
+    return response.data;
   },
 };
+
+export default f56Api;

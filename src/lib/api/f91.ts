@@ -1,131 +1,52 @@
 import { apiClient } from './client';
+import type { PaginationMeta } from './types';
 
-// Column metadata interface
-export interface F91Column {
-  column_name: string;
-  description: string;
-  position: number;
+export interface F91Transaction {
+  controllerLastName?: string | null;
+  controllerFirstName?: string | null;
+  controllerMiddleName?: string | null;
+  controllerPrefix?: string | null;
+  controllerSuffix?: string | null;
+  streetAddress1?: string | null;
+  streetAddress2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  controllerEmployer?: string | null;
+  controllerOccupation?: string | null;
+  transactionId?: string | null;
+  imageNumber?: number | null;
+  [key: string]: unknown;
 }
 
-// Pagination metadata interface
-export interface PaginationMeta {
-  page: number;
-  perPage: number;
-  totalRecords: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
-
-// Committee details interface
-export interface CommitteeDetails {
-  filing_type: string;
-  repid: string;
-  comid: string;
-  entity: string;
-  cmte_name: string;
-  form_type: string;
-  cand_last_name: string | null;
-  cand_first_name: string | null;
-  cand_middle_name: string | null;
-  cand_prefix_name: string | null;
-  cand_suffix_name: string | null;
-  street_1: string;
-  street_2: string | null;
-  city: string;
-  state: string;
-  zip: string;
-}
-
-// F91 transaction data - dynamic keys based on column descriptions
-export type F91Transaction = Record<string, string | number | null>;
-
-// Response metadata
-export interface F91Meta {
-  reportId: string;
-  lineNumber: string;
-  owner: string;
-  tableName: string;
-  committeeDetails: CommitteeDetails;
-  columns: F91Column[];
-  pagination: PaginationMeta;
-}
-
-// Main response interface
 export interface F91Response {
   data: F91Transaction[];
-  meta: F91Meta;
-}
-
-// Column metadata only response
-export interface F91ColumnsResponse {
-  data: F91Column[];
   meta: {
-    reportId: string;
+    reportId: string | number;
+    committeeId: string | null;
+    schedule: string;
     lineNumber: string;
-    owner: string;
-    tableName: string;
-    totalColumns: number;
+    pagination: PaginationMeta;
   };
 }
 
-// Error response interface
-export interface ErrorResponse {
-  error: string;
-  message?: string;
-  details?: {
-    owner?: string;
-    tableName?: string;
-    lineNumber?: string;
-  };
-}
-
-// Query parameters for pagination
-export interface F91PaginationParams {
-  page?: number;
-  per_page?: number;
-}
-
-// F91 API methods
 export const f91Api = {
-  /**
-   * Get F91 transaction data with pagination
-   * @param repid - Report ID
-   * @param params - Optional pagination parameters (page, per_page)
-   * @returns Promise with F91 transaction data and metadata
-   */
+  // F91 has no real line number (see f91_service.py's FIXED_LINE_NUMBER) -
+  // calls the line-less form of the endpoint directly, same as f56Api/f57Api.
   getF91Data: async (
     repid: string,
-    params?: F91PaginationParams
+    params: { page?: number; perPage?: number } = {}
   ): Promise<F91Response> => {
     const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.set('page', String(params.page));
+    if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    if (params?.page) {
-      queryParams.append('page', params.page.toString());
-    }
-
-    if (params?.per_page) {
-      queryParams.append('per_page', params.per_page.toString());
-    }
-
-    const queryString = queryParams.toString();
-    const url = `/f91/${repid}${queryString ? `?${queryString}` : ''}`;
-
-    const response = await apiClient.get<F91Response>(url);
-    return response.data;
-  },
-
-  /**
-   * Get column metadata for F91 transactions
-   * @param repid - Report ID
-   * @returns Promise with column metadata
-   */
-  getF91Columns: async (
-    repid: string
-  ): Promise<F91ColumnsResponse> => {
-    const response = await apiClient.get<F91ColumnsResponse>(
-      `/f91/${repid}/columns`
+    const query = queryParams.toString();
+    const response = await apiClient.get<F91Response>(
+      `/reports/${repid}/schedules/F91${query ? `?${query}` : ''}`
     );
     return response.data;
   },
 };
+
+export default f91Api;

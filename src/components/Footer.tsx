@@ -14,57 +14,14 @@ export default function Footer() {
     (window as any).CALENDAR_DOWNLOAD_PUBLIC_API_KEY = 'None';
     (window as any).CANONICAL_BASE = 'https://www.fec.gov';
 
-    // Ensure document.body exists
-    if (!document.body) {
-      console.error('document.body is null - this should not happen in useEffect');
-      return;
-    }
-
-    console.log('Footer mounted, body exists, loading scripts...');
-
-    const scripts = [
-      '/js/vendors.js',
-      //'/js/global.js',  // Changed from global-38e367885d565f4a2430.js
-      '/js/jquery-ui.js',
-      '/js/jquery.ui.widget.js',
-      '/js/modals.js',
-      '/js/ajaxcalls.js',
-      '/js/custom.js',
-      //'https://dap.digitalgov.gov/Universal-Federated-Analytics-Min.js?agency=FEC'
-    ];
-
-    const loadScript = (src: string) => {
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.type = 'text/javascript';
-        script.defer = true; // Use defer to wait for DOM
-        script.onload = () => {
-          console.log(`✓ ${src.split('/').pop()}`);
-          resolve(src);
-        };
-        script.onerror = () => {
-          console.warn(`⚠ ${src.split('/').pop()} failed`);
-          resolve(src);
-        };
-        document.body.appendChild(script);
-      });
-    };
-
-    const loadAllScripts = async () => {
-      for (const src of scripts) {
-        await loadScript(src);
-        // Add tiny delay between scripts
-        await new Promise(r => setTimeout(r, 50));
-      }
-      console.log('✓ All FEC scripts loaded');
-    };
-
-    // Small delay to ensure React has fully rendered
-    setTimeout(() => {
-      loadAllScripts();
-    }, 100);
-
+    // Legacy jQuery/jQuery-UI/FEC script loading lives in ScriptLoader.tsx
+    // only (rendered once in the root layout). This component used to load
+    // its own overlapping copy of that same script sequence in a second,
+    // unsynchronized effect, racing ScriptLoader's - the two uncoordinated
+    // loaders were the cause of "$(...).dialog is not a function" (a
+    // conflicting standalone widget-factory script from one loader's chain
+    // could execute before jQuery UI's own from the other's). Do not
+    // reintroduce a second script loader here.
   }, []);
 
   return (

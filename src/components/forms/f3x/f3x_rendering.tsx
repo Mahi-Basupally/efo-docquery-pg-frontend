@@ -3,8 +3,8 @@
 import { ReactNode, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import ReportTable, { ReportTableColumn, ReportTableRow } from '@/components/tables/ReportTable';
-import SARenderer from '@/components/forms/schedules/sa/sa_rendering';
-import SBRenderer from '@/components/forms/schedules/sb/sb_rendering';
+import SARenderer from '@/components/schedules/sa/sa_rendering';
+import SBRenderer from '@/components/schedules/sb/sb_rendering';
 import type { F3XFinancialLine, F3XFormDetailLine, F3XLine, F3XReportData, F3XSection } from '@/lib/api/f3x';
 import { F3X_LINE_DEFINITIONS, F3X_SECTION_DEFINITIONS } from './f3xDefinition';
 

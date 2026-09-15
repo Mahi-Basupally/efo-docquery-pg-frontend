@@ -202,19 +202,22 @@ export default function CommitteeFormsPage() {
         <div className="text-sm font-medium text-gray-900">{form.formType}</div>
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
+        <span className="text-sm font-mono text-gray-900">{form.amendmentIndicator || 'N/A'}</span>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
         <div className="text-xs text-gray-500">{form.reportId}</div>
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="text-sm text-gray-900">{formatDate(form.filedDate)}</div>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-        {formatDate(form.fromDate)}
+        {formatDate(form.coverageFromDate)}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-        {formatDate(form.throughDate)}
+        {formatDate(form.coverageThroughDate)}
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <span className="text-sm font-mono text-gray-900">{form.reportCode || 'N/A'}</span>
+        <span className="text-sm font-mono text-gray-900">{form.reportType || 'N/A'}</span>
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <span className="text-sm font-mono text-gray-900">{form.startingImageNumber || 'N/A'}</span>
@@ -255,6 +258,9 @@ export default function CommitteeFormsPage() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Form Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amendment
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     FEC ID

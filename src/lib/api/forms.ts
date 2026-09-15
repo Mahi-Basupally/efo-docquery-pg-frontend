@@ -4,26 +4,28 @@
 
 import { apiClient } from './client';
 
+// Matches app/services/reports_service.py's get_cand_cmte_reports
+// (GET /reports/{cand_cmte_id}/filings) - same FIELD_MAP as
+// lib/api/reports.ts's BasicInfo/Filing.
 export interface Form {
   reportId: number;
   formType: string;
+  amendmentIndicator: string;
   formCategory: 'reports' | 'notices' | 'statements' | 'other';
   committeeId: string;
   committeeName: string;
   filedDate: string | null;
   timestamp: string | null;
-  fromDate: string | null;
-  throughDate: string | null;
-  md5: string;
-  superceded: number | null;
-  previousId: number | null;
-  reportCode: string;
-  version: string;
-  reportNumber: number;
-  startingImageNumber: number;
-  endingImageNumber: number;
-  createDate: string | null;
-  excludeIndicator: string | null;
+  coverageFromDate: string | null;
+  coverageThroughDate: string | null;
+  md5Hash: string;
+  supercededReportId: string | null;
+  previousReportId: string | null;
+  reportType: string;
+  formatVersion: string;
+  reportNumber: string | null;
+  startingImageNumber: number | null;
+  endingImageNumber: number | null;
 }
 
 export interface FormsResponse {
@@ -77,7 +79,7 @@ export const formsApi = {
    * Get forms filed by a candidate/committee ID
    */
   getForms: async (candCmteId: string, limit = 25, offset = 0): Promise<FormsResponse> => {
-    const response = await apiClient.get<FormsResponse>(`/filings/${candCmteId}`, {
+    const response = await apiClient.get<FormsResponse>(`/reports/${candCmteId}/filings`, {
       params: { limit, offset },
     });
     return response.data;

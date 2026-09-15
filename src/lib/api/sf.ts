@@ -1,92 +1,77 @@
 import { apiClient } from './client';
-import {
-  CommitteeDetails,
-  PaginationMeta,
-  ScheduleColumn,
-  ErrorResponse,
-  PaginationParams
-} from './types';
+import type { PaginationMeta } from './types';
 
-// Schedule F transaction data - dynamic keys based on camelCase field names
-export type ScheduleFTransaction = Record<string, string | number | null>;
-
-// Response metadata
-export interface ScheduleFMeta {
-  reportId: string;
-  lineNumber: string;
-  columns: ScheduleColumn[];
-  committeeDetails: CommitteeDetails;
-  pagination: PaginationMeta;
+export interface ScheduleFTransaction {
+  transactionId?: string | null;
+  backReferenceTransactionId?: string | null;
+  backReferenceScheduleName?: string | null;
+  entityType?: string | null;
+  coordinatedExpenditureIndicator?: string | null;
+  designatingCommitteeId?: string | null;
+  designatingCommitteeName?: string | null;
+  subordinateCommitteeId?: string | null;
+  subordinateCommitteeName?: string | null;
+  subordinateStreetAddress1?: string | null;
+  subordinateStreetAddress2?: string | null;
+  subordinateCity?: string | null;
+  subordinateState?: string | null;
+  subordinateZipCode?: string | null;
+  payeeName?: string | null;
+  payeeLastName?: string | null;
+  payeeFirstName?: string | null;
+  payeeMiddleName?: string | null;
+  payeePrefix?: string | null;
+  payeeSuffix?: string | null;
+  streetAddress1?: string | null;
+  streetAddress2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  payeeCandidateId?: string | null;
+  payeeCandidateLastName?: string | null;
+  payeeCandidateFirstName?: string | null;
+  payeeCandidateMiddleName?: string | null;
+  payeeCandidatePrefix?: string | null;
+  payeeCandidateSuffix?: string | null;
+  payeeCandidateOffice?: string | null;
+  payeeCandidateState?: string | null;
+  payeeCandidateDistrict?: string | number | null;
+  aggregateGeneralElectionExpenditure?: string | number | null;
+  transactionDescription?: string | null;
+  transactionDate?: string | null;
+  amount?: string | number | null;
+  payeeCommitteeId?: string | null;
+  memoCode?: string | null;
+  memoText?: string | null;
+  categoryCode?: string | null;
+  imageNumber?: number | null;
+  [key: string]: unknown;
 }
 
-// Main response interface
 export interface ScheduleFResponse {
   data: ScheduleFTransaction[];
-  meta: ScheduleFMeta;
-}
-
-// Column metadata only response
-export interface ScheduleFColumnsResponse {
-  data: ScheduleColumn[];
   meta: {
-    reportId: string;
+    reportId: string | number;
+    committeeId: string | null;
+    schedule: string;
     lineNumber: string;
-    totalColumns: number;
+    pagination: PaginationMeta;
   };
 }
 
-// Re-export shared types for convenience
-export type {
-  CommitteeDetails,
-  PaginationMeta,
-  ScheduleColumn,
-  ErrorResponse,
-  PaginationParams
-};
-
-// Schedule F API methods
 export const scheduleFApi = {
-  /**
-   * Get Schedule F transaction data with pagination
-   * @param repid - Report ID
-   * @param lineNum - Line number (e.g., "24", "25")
-   * @param params - Optional pagination parameters (page, perPage)
-   * @returns Promise with Schedule F transaction data and metadata
-   */
   getScheduleFData: async (
     repid: string,
     lineNum: string,
-    params?: PaginationParams
+    params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleFResponse> => {
     const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.set('page', String(params.page));
+    if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    if (params?.page) {
-      queryParams.append('page', params.page.toString());
-    }
-
-    if (params?.perPage) {
-      queryParams.append('perPage', params.perPage.toString());
-    }
-
-    const queryString = queryParams.toString();
-    const url = `/sf/${repid}/${lineNum}${queryString ? `?${queryString}` : ''}`;
-
-    const response = await apiClient.get<ScheduleFResponse>(url);
-    return response.data;
-  },
-
-  /**
-   * Get column metadata for Schedule F transactions
-   * @param repid - Report ID
-   * @param lineNum - Line number (e.g., "24", "25")
-   * @returns Promise with column metadata
-   */
-  getScheduleFColumns: async (
-    repid: string,
-    lineNum: string
-  ): Promise<ScheduleFColumnsResponse> => {
-    const response = await apiClient.get<ScheduleFColumnsResponse>(
-      `/sf/${repid}/${lineNum}/columns`
+    const query = queryParams.toString();
+    const response = await apiClient.get<ScheduleFResponse>(
+      `/reports/${repid}/schedules/SF/${lineNum}${query ? `?${query}` : ''}`
     );
     return response.data;
   },

@@ -2,50 +2,49 @@ import { apiClient } from './client';
 import type { PaginationMeta } from './types';
 
 export interface ScheduleBTransaction {
-  filerCommitteeId?: string | null;
   transactionId?: string | null;
   backReferenceTransactionId?: string | null;
   backReferenceScheduleName?: string | null;
   entityType?: string | null;
-  entityName?: string | null;
-  entityLastName?: string | null;
-  entityFirstName?: string | null;
-  entityMiddleName?: string | null;
-  entityPrefix?: string | null;
-  entitySuffix?: string | null;
+  payeeName?: string | null;
+  payeeLastName?: string | null;
+  payeeFirstName?: string | null;
+  payeeMiddleName?: string | null;
+  payeePrefix?: string | null;
+  payeeSuffix?: string | null;
   streetAddress1?: string | null;
   streetAddress2?: string | null;
   city?: string | null;
   state?: string | null;
   zipCode?: string | null;
-  electionType?: string | null;
-  electionDescription?: string | null;
-  disbursementDate?: string | null;
+  electionCode?: string | null;
+  electionOtherDescription?: string | null;
+  transactionDate?: string | null;
   amount?: string | number | null;
-  scheduleAReferenceAmount?: string | number | null;
+  semiAnnualRefundedBundledAmount?: string | number | null;
   transactionDescription?: string | null;
-  cat_code?: string | null;
-  other_comid?: string | null;
+  categoryCode?: string | null;
+  beneficiaryCommitteeId?: string | null;
   beneficiaryCommitteeName?: string | null;
-  other_canid?: string | null;
-  can_name?: string | null;
-  can_fname?: string | null;
-  can_mname?: string | null;
-  can_prefix?: string | null;
-  can_suffix?: string | null;
-  can_off?: string | null;
-  can_state?: string | null;
-  can_dist?: string | number | null;
-  other_name?: string | null;
-  other_str1?: string | null;
-  other_str2?: string | null;
-  other_city?: string | null;
-  other_state?: string | null;
-  other_zip?: string | null;
+  beneficiaryCandidateId?: string | null;
+  beneficiaryCandidateLastName?: string | null;
+  beneficiaryCandidateFirstName?: string | null;
+  beneficiaryCandidateMiddleName?: string | null;
+  beneficiaryCandidatePrefix?: string | null;
+  beneficiaryCandidateSuffix?: string | null;
+  beneficiaryCandidateOffice?: string | null;
+  beneficiaryCandidateState?: string | null;
+  beneficiaryCandidateDistrict?: string | number | null;
+  conduitName?: string | null;
+  conduitStreetAddress1?: string | null;
+  conduitStreetAddress2?: string | null;
+  conduitCity?: string | null;
+  conduitState?: string | null;
+  conduitZipCode?: string | null;
   memoCode?: string | null;
   memoText?: string | null;
-  nc_softacct?: string | null;
-  imageno?: number | null;
+  accountReferenceCode?: string | null;
+  imageNumber?: number | null;
   [key: string]: unknown;
 }
 
@@ -53,6 +52,7 @@ export interface ScheduleBResponse {
   data: ScheduleBTransaction[];
   meta: {
     reportId: string | number;
+    committeeId: string | null;
     schedule: string;
     lineNumber: string;
     pagination: PaginationMeta;
@@ -71,7 +71,7 @@ export const scheduleBApi = {
 
     const query = queryParams.toString();
     const response = await apiClient.get<ScheduleBResponse>(
-      `/sb/${repid}/${lineNum}${query ? `?${query}` : ''}`
+      `/reports/${repid}/schedules/SB/${lineNum}${query ? `?${query}` : ''}`
     );
     return response.data;
   },

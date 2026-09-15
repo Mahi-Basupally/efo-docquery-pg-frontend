@@ -33,31 +33,50 @@ export default function ScriptLoader() {
       });
     };
 
-    // Load scripts in exact order
+    // Load scripts in exact order. This is the ONLY place FEC's legacy
+    // jQuery/jQuery-UI scripts get loaded - Footer.tsx used to load its own
+    // overlapping copy of this same sequence in a second, unsynchronized
+    // useEffect, racing this one (removed from Footer.tsx entirely).
+    //
+    // vendors.js/global.js are FEC.gov's own webpack chunks and bundle
+    // their own internal copy of jQuery (vendors.js literally contains
+    // node_modules/jquery/dist/jquery.js). When they execute they reassign
+    // window.$/jQuery to that bundled copy as a side effect, which has no
+    // jQuery UI methods. So they MUST load - and be allowed to finish
+    // clobbering window.$ - BEFORE the real jQuery + jQuery UI CDN scripts,
+    // not after: loading them after (the previous order here) meant
+    // vendors.js silently reset window.$ back to a UI-less jQuery right
+    // before modals.js/ajaxcalls.js/custom.js ran, producing
+    // "$(...).dialog is not a function" the moment any of them called
+    // .dialog() (confirmed via a live stack trace: custom.js's
+    // $(document).ready(...) callback fired through vendors.js's own
+    // bundled jQuery, not the CDN one). vendors.js/global.js are
+    // self-contained webpack chunks - they don't need a global jQuery to
+    // already exist to load themselves, so loading them first is safe.
     const loadScriptsSequentially = async () => {
       try {
-        // Load jQuery first (required for all other scripts)
-        await loadScript('https://code.jquery.com/jquery-3.7.1.js');
-        console.log('jQuery loaded');
-
-        // Load jQuery UI
-        await loadScript('https://code.jquery.com/ui/1.13.2/jquery-ui.js');
-        console.log('jQuery UI loaded');
-
-        // Load vendors.js (may contain jQuery plugins)
+        // FEC.gov's own webpack chunks - load first; each bundles its own
+        // internal jQuery copy and will reassign window.$ as a side effect.
         await loadScript('/js/vendors.js');
         console.log('Vendors loaded');
 
-        // Load global.js (now document.body is available)
         await loadScript('/js/global.js');
         console.log('Global loaded');
 
-        // Load additional jQuery UI components
-        await loadScript('/js/jquery-ui.js');
-        console.log('jQuery UI custom loaded');
+        // Real jQuery + full jQuery UI (dialog included) - load last, so
+        // this is the copy still on window.$ when the legacy scripts below
+        // run, not vendors.js's UI-less one.
+        await loadScript('https://code.jquery.com/jquery-3.7.1.js');
+        console.log('jQuery loaded');
 
-        await loadScript('/js/jquery.ui.widget.js');
-        console.log('jQuery UI widget loaded');
+        await loadScript('https://code.jquery.com/ui/1.13.2/jquery-ui.js');
+        console.log('jQuery UI loaded');
+
+        // FEC legacy page scripts - depend on jQuery + jQuery UI above
+        await loadScript('/js/modals.js');
+        await loadScript('/js/ajaxcalls.js');
+        await loadScript('/js/custom.js');
+        console.log('FEC legacy scripts loaded');
 
         console.log('All scripts loaded successfully');
       } catch (error) {

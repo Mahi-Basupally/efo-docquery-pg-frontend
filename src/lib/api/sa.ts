@@ -2,7 +2,6 @@ import { apiClient } from './client';
 import type { PaginationMeta } from './types';
 
 export interface ScheduleATransaction {
-  filerCommitteeId?: string | null;
   transactionId?: string | null;
   backReferenceTransactionId?: string | null;
   backReferenceScheduleName?: string | null;
@@ -54,6 +53,7 @@ export interface ScheduleAResponse {
   data: ScheduleATransaction[];
   meta: {
     reportId: string | number;
+    committeeId: string | null;
     schedule: string;
     lineNumber: string;
     pagination: PaginationMeta;
@@ -72,7 +72,7 @@ export const scheduleAApi = {
 
     const query = queryParams.toString();
     const response = await apiClient.get<ScheduleAResponse>(
-      `/sa/${repid}/${lineNum}${query ? `?${query}` : ''}`
+      `/reports/${repid}/schedules/SA/${lineNum}${query ? `?${query}` : ''}`
     );
     return response.data;
   },
