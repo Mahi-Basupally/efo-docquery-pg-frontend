@@ -1,6 +1,7 @@
 'use client';
 
 import FinancialReportRenderer, { FinancialReportData } from '../FinancialReportRenderer';
+import ReportTable, { ReportTableColumn, ReportTableRow } from '@/components/tables/ReportTable';
 import { F3_LINE_DEFINITIONS } from './f3Definition';
 
 export interface F3ReportProps {
@@ -141,16 +142,10 @@ const formatTreasurerName = (treasurer?: F3Treasurer): string => {
   return parts.length ? parts.join(' ') : '—';
 };
 
-const FigureRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <tr>
-    <td className="w-1/4 align-top px-3 py-2 text-sm font-semibold text-gray-700">
-      {label}
-    </td>
-    <td className="align-top px-3 py-2 text-sm text-gray-900">
-      {children}
-    </td>
-  </tr>
-);
+const committeeColumns: ReportTableColumn[] = [
+  { key: 'label', label: 'Description', align: 'left', width: '35%' },
+  { key: 'value', label: 'Value', align: 'left', width: '65%' },
+];
 
 const F3ReportHeader = ({ data }: { data: F3ReportData }) => {
   const committee = data.committee;
@@ -177,66 +172,77 @@ const F3ReportHeader = ({ data }: { data: F3ReportData }) => {
     report?.coveragePeriod?.through,
   )}`;
 
+  const rows: ReportTableRow[] = [
+    {
+      id: 'committee-name',
+      cells: { label: 'Committee name:', value: displayValue(committee?.name) },
+    },
+    {
+      id: 'mailing-address',
+      cells: {
+        label: 'Mailing address:',
+        value: (
+          <>
+            <span className="block">{displayValue(addressLine1)}</span>
+            <span className="block">{displayValue(addressLine2)}</span>
+          </>
+        ),
+      },
+    },
+    {
+      id: 'treasurer',
+      cells: { label: 'Treasurer:', value: formatTreasurerName(treasurer) },
+    },
+    {
+      id: 'committee-id',
+      cells: { label: 'Committee ID:', value: displayValue(committee?.id) },
+    },
+    {
+      id: 'election',
+      cells: { label: 'Election:', value: election },
+    },
+    {
+      id: 'report-id',
+      cells: { label: 'Report ID:', value: displayValue(report?.reportId) },
+    },
+    {
+      id: 'report-code',
+      cells: { label: 'Report code:', value: displayValue(report?.reportCode ?? report?.reportType) },
+    },
+    {
+      id: 'amendment',
+      cells: { label: 'Amendment:', value: displayValue(report?.amendmentIndicator) },
+    },
+    {
+      id: 'filed-date',
+      cells: { label: 'Filed date:', value: formatDate(report?.filedDate) },
+    },
+    {
+      id: 'coverage-period',
+      cells: { label: 'Coverage period:', value: coveragePeriod },
+    },
+    {
+      id: 'date-signed',
+      cells: { label: 'Date signed:', value: formatDate(report?.dateSigned) },
+    },
+  ];
+
+  if (committee?.changeOfAddress) {
+    rows.push({
+      id: 'change-of-address',
+      cells: { label: 'Change of address:', value: 'Yes' },
+    });
+  }
+
   return (
-    <div className="entity__figure row mb-8">
-      <h3 className="heading--section mb-3 text-lg font-semibold text-gray-900">
-        Committee information
-      </h3>
-
-      <div className="overflow-x-auto">
-        <table className="t-sans w-full max-w-4xl border-collapse text-left">
-          <tbody>
-            <FigureRow label="Committee name:">
-              {displayValue(committee?.name)}
-            </FigureRow>
-
-            <FigureRow label="Mailing address:">
-              <span className="t-block block">{displayValue(addressLine1)}</span>
-              <span className="t-block block">{displayValue(addressLine2)}</span>
-            </FigureRow>
-
-            <FigureRow label="Treasurer:">
-              {formatTreasurerName(treasurer)}
-            </FigureRow>
-
-            <FigureRow label="Committee ID:">
-              {displayValue(committee?.id)}
-            </FigureRow>
-
-            <FigureRow label="Election:">
-              {election}
-            </FigureRow>
-
-            <FigureRow label="Report ID:">
-              {displayValue(report?.reportId)}
-            </FigureRow>
-
-            <FigureRow label="Report code:">
-              {displayValue(report?.reportCode ?? report?.reportType)}
-            </FigureRow>
-
-            <FigureRow label="Amendment:">
-              {displayValue(report?.amendmentIndicator)}
-            </FigureRow>
-
-            <FigureRow label="Filed date:">
-              {formatDate(report?.filedDate)}
-            </FigureRow>
-
-            <FigureRow label="Coverage period:">
-              {coveragePeriod}
-            </FigureRow>
-
-            <FigureRow label="Date signed:">
-              {formatDate(report?.dateSigned)}
-            </FigureRow>
-
-            {committee?.changeOfAddress && (
-              <FigureRow label="Change of address:">Yes</FigureRow>
-            )}
-          </tbody>
-        </table>
-      </div>
+    <div className="mb-8">
+      <ReportTable
+        id="f3-committee-information"
+        title="Committee information"
+        columns={committeeColumns}
+        rows={rows}
+        collapsible={false}
+      />
     </div>
   );
 };
