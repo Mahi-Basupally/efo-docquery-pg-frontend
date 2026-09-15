@@ -1,92 +1,71 @@
 import { apiClient } from './client';
-import {
-  CommitteeDetails,
-  PaginationMeta,
-  ScheduleColumn,
-  ErrorResponse,
-  PaginationParams
-} from './types';
+import type { PaginationMeta } from './types';
 
-// Schedule C transaction data - dynamic keys based on camelCase field names
-export type ScheduleCTransaction = Record<string, string | number | null>;
-
-// Response metadata
-export interface ScheduleCMeta {
-  reportId: string;
-  lineNumber: string;
-  columns: ScheduleColumn[];
-  committeeDetails: CommitteeDetails;
-  pagination: PaginationMeta;
+export interface ScheduleCTransaction {
+  transactionId?: string | null;
+  entityType?: string | null;
+  lenderName?: string | null;
+  lenderLastName?: string | null;
+  lenderFirstName?: string | null;
+  lenderMiddleName?: string | null;
+  lenderPrefix?: string | null;
+  lenderSuffix?: string | null;
+  streetAddress1?: string | null;
+  streetAddress2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  electionCode?: string | null;
+  electionOtherDescription?: string | null;
+  originalAmount?: string | number | null;
+  paidToDate?: string | number | null;
+  balance?: string | number | null;
+  dateIncurred?: string | null;
+  dateDue?: string | null;
+  interestRate?: string | number | null;
+  securedIndicator?: string | null;
+  personalFundsIndicator?: string | null;
+  lenderCommitteeId?: string | null;
+  lenderCandidateId?: string | null;
+  lenderCandidateLastName?: string | null;
+  lenderCandidateFirstName?: string | null;
+  lenderCandidateMiddleName?: string | null;
+  lenderCandidatePrefix?: string | null;
+  lenderCandidateSuffix?: string | null;
+  lenderCandidateOffice?: string | null;
+  lenderCandidateState?: string | null;
+  lenderCandidateDistrict?: string | number | null;
+  memoCode?: string | null;
+  memoText?: string | null;
+  tranId?: string | null;
+  imageNumber?: number | null;
+  [key: string]: unknown;
 }
 
-// Main response interface
 export interface ScheduleCResponse {
   data: ScheduleCTransaction[];
-  meta: ScheduleCMeta;
-}
-
-// Column metadata only response
-export interface ScheduleCColumnsResponse {
-  data: ScheduleColumn[];
   meta: {
-    reportId: string;
+    reportId: string | number;
+    committeeId: string | null;
+    schedule: string;
     lineNumber: string;
-    totalColumns: number;
+    pagination: PaginationMeta;
   };
 }
 
-// Re-export shared types for convenience
-export type {
-  CommitteeDetails,
-  PaginationMeta,
-  ScheduleColumn,
-  ErrorResponse,
-  PaginationParams
-};
-
-// Schedule C API methods
 export const scheduleCApi = {
-  /**
-   * Get Schedule C transaction data with pagination
-   * @param repid - Report ID
-   * @param lineNum - Line number (e.g., "9", "10", "11", "12")
-   * @param params - Optional pagination parameters (page, perPage)
-   * @returns Promise with Schedule C transaction data and metadata
-   */
   getScheduleCData: async (
     repid: string,
     lineNum: string,
-    params?: PaginationParams
+    params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleCResponse> => {
     const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.set('page', String(params.page));
+    if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    if (params?.page) {
-      queryParams.append('page', params.page.toString());
-    }
-
-    if (params?.perPage) {
-      queryParams.append('perPage', params.perPage.toString());
-    }
-
-    const queryString = queryParams.toString();
-    const url = `/sc/${repid}/${lineNum}${queryString ? `?${queryString}` : ''}`;
-
-    const response = await apiClient.get<ScheduleCResponse>(url);
-    return response.data;
-  },
-
-  /**
-   * Get column metadata for Schedule C transactions
-   * @param repid - Report ID
-   * @param lineNum - Line number (e.g., "9", "10", "11", "12")
-   * @returns Promise with column metadata
-   */
-  getScheduleCColumns: async (
-    repid: string,
-    lineNum: string
-  ): Promise<ScheduleCColumnsResponse> => {
-    const response = await apiClient.get<ScheduleCColumnsResponse>(
-      `/sc/${repid}/${lineNum}/columns`
+    const query = queryParams.toString();
+    const response = await apiClient.get<ScheduleCResponse>(
+      `/reports/${repid}/schedules/SC/${lineNum}${query ? `?${query}` : ''}`
     );
     return response.data;
   },

@@ -25,3 +25,23 @@ body {
   width: auto;
   height: auto;
 }
+
+/* Schedule sidenav (src/components/SideNav.tsx): sticky only once
+   .side-nav-alt's own CSS switches it to table-cell layout (>=40em) and it
+   sits beside the content column. Below that it's a normal stacked block
+   above the content, so sticky there just pins it over the page as you
+   scroll - keep it static on mobile. */
+.docquery-sidenav {
+  position: static;
+}
+
+@media (min-width: 40em) {
+  .docquery-sidenav {
+    position: sticky;
+    top: 1.5rem;
+    display: block;
+    align-self: flex-start;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+  }
+}

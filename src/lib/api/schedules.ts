@@ -12,21 +12,19 @@ export interface Schedule {
   totalTransactions: number;
 }
 
+// Matches app/services/schedules/schedule_transactions_service.py's
+// get_schedules_total_list exactly: { "data": Schedule[], "meta": {...} }.
+// committeeId lives only in meta - every item is the same committee, so it
+// isn't repeated per item.
 export interface SchedulesMeta {
   reportId: string;
-  totalSchedules: number;
-  totalTransactions: number;
+  committeeId: string | null;
+  formType: string | null;
 }
 
 export interface SchedulesResponse {
   data: Schedule[];
-  meta?: {
-    reportId: string;
-    committeeId: string;
-    totalSchedules: number;
-    totalTransactions: number;
-  };
-  message?: string;
+  meta: SchedulesMeta;
 }
 
 export interface ErrorResponse {

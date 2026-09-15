@@ -1,92 +1,44 @@
 import { apiClient } from './client';
-import {
-  CommitteeDetails,
-  PaginationMeta,
-  ScheduleColumn,
-  ErrorResponse,
-  PaginationParams
-} from './types';
+import type { PaginationMeta } from './types';
 
-// H5 transaction data - dynamic keys based on camelCase field names
-export type H5Transaction = Record<string, string | number | null>;
-
-// Response metadata
-export interface H5Meta {
-  reportId: string;
-  lineNumber: string;
-  columns: ScheduleColumn[];
-  committeeDetails: CommitteeDetails;
-  pagination: PaginationMeta;
+export interface H5Transaction {
+  transactionId?: string | null;
+  accountName?: string | null;
+  receiptDate?: string | null;
+  totalAmountTransferred?: string | number | null;
+  voterRegistrationAmount?: string | number | null;
+  voterIdAmount?: string | number | null;
+  gotvAmount?: string | number | null;
+  genericCampaignAmount?: string | number | null;
+  imageNumber?: number | null;
+  [key: string]: unknown;
 }
 
-// Main response interface
 export interface H5Response {
   data: H5Transaction[];
-  meta: H5Meta;
-}
-
-// Column metadata only response
-export interface H5ColumnsResponse {
-  data: ScheduleColumn[];
   meta: {
-    reportId: string;
+    reportId: string | number;
+    committeeId: string | null;
+    schedule: string;
     lineNumber: string;
-    totalColumns: number;
+    pagination: PaginationMeta;
   };
 }
 
-// Re-export shared types for convenience
-export type {
-  CommitteeDetails,
-  PaginationMeta,
-  ScheduleColumn,
-  ErrorResponse,
-  PaginationParams
-};
-
-// H5 API methods
 export const h5Api = {
-  /**
-   * Get H5 transaction data with pagination
-   * @param repid - Report ID
-   * @param lineNum - Line number
-   * @param params - Optional pagination parameters (page, perPage)
-   * @returns Promise with H5 transaction data and metadata
-   */
+  // H5 has no real line number (see h5_service.py) - calls the line-less
+  // form of the endpoint directly rather than passing a synthetic value.
   getH5Data: async (
     repid: string,
-    lineNum: string,
-    params?: PaginationParams
+    params: { page?: number; perPage?: number } = {}
   ): Promise<H5Response> => {
     const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.set('page', String(params.page));
+    if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    if (params?.page) {
-      queryParams.append('page', params.page.toString());
-    }
-
-    if (params?.perPage) {
-      queryParams.append('perPage', params.perPage.toString());
-    }
-
-    const queryString = queryParams.toString();
-    const url = `/h5/${repid}/${lineNum}${queryString ? `?${queryString}` : ''}`;
-
-    const response = await apiClient.get<H5Response>(url);
-    return response.data;
-  },
-
-  /**
-   * Get column metadata for H5 transactions
-   * @param repid - Report ID
-   * @param lineNum - Line number
-   * @returns Promise with column metadata
-   */
-  getH5Columns: async (
-    repid: string,
-    lineNum: string
-  ): Promise<H5ColumnsResponse> => {
-    const response = await apiClient.get<H5ColumnsResponse>(
-      `/h5/${repid}/${lineNum}/columns`
+    const query = queryParams.toString();
+    const response = await apiClient.get<H5Response>(
+      `/reports/${repid}/schedules/H5${query ? `?${query}` : ''}`
     );
     return response.data;
   },

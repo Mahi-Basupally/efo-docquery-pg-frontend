@@ -1,101 +1,82 @@
 import { apiClient } from './client';
-import {
-  CommitteeDetails,
-  ErrorResponse
-} from './types';
+import type { PaginationMeta } from './types';
 
-// Schedule C1 transaction data - properly typed for loans and lines of credit
 export interface ScheduleC1Transaction {
-  reportId?: string;
-  lineNumber?: string;
-  relatedLineNumber?: number;
-  transactionId?: string;
-  referenceId?: string;
-  committeeId?: string;
-  entityType?: string;
-  lenderName?: string;
-  street1?: string;
-  street2?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
-  loanAmount?: number;
-  interestRate?: string;
-  dateIncurred?: string;
-  dateDue?: string;
-  restructured?: string;
-  originalLoanDate?: string;
-  creditLineSecuredAmount?: string;
-  loanBalance?: number;
-  othersLiable?: string;
-  collateralIndicator?: string;
-  collateralDescription?: string;
-  collateralValue?: number;
-  perfectedInterest?: string;
-  futureIncomeIndicator?: string;
-  futureIncomeDescription?: string;
-  estimatedValue?: number;
-  accountEstablishedDate?: string;
-  depositorName?: string;
-  depositorStreet1?: string;
-  depositorStreet2?: string;
-  depositorCity?: string;
-  depositorState?: string;
-  depositorZipCode?: string;
-  accountDate?: string;
-  basisOfLoanDescription?: string;
-  treasurerLastName?: string;
-  treasurerFirstName?: string;
-  treasurerMiddleName?: string;
-  treasurerPrefix?: string;
-  treasurerSuffix?: string;
-  treasurerSignedDate?: string;
-  authorizedLastName?: string;
-  authorizedFirstName?: string;
-  authorizedMiddleName?: string;
-  authorizedPrefix?: string;
-  authorizedSuffix?: string;
-  authorizedTitle?: string;
-  authorizedDate?: string;
-  amendmentIndicator?: string;
-  imageNumber?: string;
+  transactionId?: string | null;
+  backReferenceTransactionId?: string | null;
+  entityType?: string | null;
+  lenderName?: string | null;
+  streetAddress1?: string | null;
+  streetAddress2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  amount?: string | number | null;
+  interestRate?: string | number | null;
+  dateIncurred?: string | null;
+  dateDue?: string | null;
+  restructuredIndicator?: string | null;
+  originalLoanDate?: string | null;
+  creditAmountThisDraw?: string | number | null;
+  balance?: string | number | null;
+  othersLiable?: string | null;
+  collateralIndicator?: string | null;
+  collateralDescription?: string | null;
+  collateralValue?: string | number | null;
+  perfectedInterestIndicator?: string | null;
+  futureIncomeIndicator?: string | null;
+  futureIncomeDescription?: string | null;
+  estimatedValue?: string | number | null;
+  depositoryAccountDate?: string | null;
+  depositoryAccountName?: string | null;
+  depositoryStreetAddress1?: string | null;
+  depositoryStreetAddress2?: string | null;
+  depositoryCity?: string | null;
+  depositoryState?: string | null;
+  depositoryZipCode?: string | null;
+  depositoryAccountAuthDate?: string | null;
+  basisOfLoanDescription?: string | null;
+  treasurerLastName?: string | null;
+  treasurerFirstName?: string | null;
+  treasurerMiddleName?: string | null;
+  treasurerPrefix?: string | null;
+  treasurerSuffix?: string | null;
+  treasurerSignedDate?: string | null;
+  authorizedLastName?: string | null;
+  authorizedFirstName?: string | null;
+  authorizedMiddleName?: string | null;
+  authorizedPrefix?: string | null;
+  authorizedSuffix?: string | null;
+  authorizedTitle?: string | null;
+  authorizedSignedDate?: string | null;
+  imageNumber?: number | null;
+  [key: string]: unknown;
 }
 
-// Response metadata (no pagination for C1)
-export interface ScheduleC1Meta {
-  reportId: string;
-  lineNumber: string;
-  totalRecords: number;
-  committeeDetails: CommitteeDetails;
-  version: number | null;
-}
-
-// Main response interface
 export interface ScheduleC1Response {
   data: ScheduleC1Transaction[];
-  meta: ScheduleC1Meta;
+  meta: {
+    reportId: string | number;
+    committeeId: string | null;
+    schedule: string;
+    lineNumber: string;
+    pagination: PaginationMeta;
+  };
 }
 
-// Re-export shared types for convenience
-export type {
-  CommitteeDetails,
-  ErrorResponse
-};
-
-// Schedule C1 API methods
 export const scheduleC1Api = {
-  /**
-   * Get Schedule C1 transaction data (no pagination)
-   * @param repid - Report ID
-   * @param lineNum - Line number
-   * @returns Promise with Schedule C1 transaction data and metadata
-   */
   getScheduleC1Data: async (
     repid: string,
-    lineNum: string
+    lineNum: string,
+    params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleC1Response> => {
+    const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.set('page', String(params.page));
+    if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
+
+    const query = queryParams.toString();
     const response = await apiClient.get<ScheduleC1Response>(
-      `/sc1/${repid}/${lineNum}`
+      `/reports/${repid}/schedules/SC1/${lineNum}${query ? `?${query}` : ''}`
     );
     return response.data;
   },

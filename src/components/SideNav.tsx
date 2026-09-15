@@ -2,7 +2,46 @@
 
 import React, { useEffect, useState } from 'react';
 import { scheduleApi, Schedule, SchedulesResponse } from '@/lib/api/schedules';
+import { getFormSummarySections } from '@/lib/formSummarySections';
 import { useRouter, usePathname } from 'next/navigation';
+
+const SUMMARY_TAB = 'SUMMARY';
+
+// Mirrors app/routes/schedules.py's SCHEDULES_WITHOUT_REQUIRED_LINE_NUMBER -
+// these schedules have no real per-report line (their totals query reports
+// back a synthetic line equal to the schedule code itself, e.g. 'H2'), and
+// their route folders are flat page.tsx (no [line_num] segment), so their
+// links must not include a line segment either.
+const SCHEDULES_WITHOUT_REQUIRED_LINE_NUMBER = new Set([
+  'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'F91', 'F56', 'F57', 'F65', 'F76', 'F92', 'F93', 'F132', 'F133', 'F3P31AL',
+]);
+
+// F94 (candidate identification) has no standalone page - its rows render
+// inline under their parent F93 transaction instead (f93_rendering.tsx),
+// so it's filtered out here rather than linking to a page that no longer
+// exists.
+const HIDDEN_SCHEDULES = new Set(['F94']);
+
+// FEC's own CSS has no complete sticky-sidebar rule to reuse (only a bare
+// .sidebar__inside-sticky-side padding/background helper, no position, and
+// no JS scroll-listener for it either). The .docquery-sidenav class
+// (globals.css) applies position:sticky only at the same >=40em breakpoint
+// where .side-nav-alt itself switches to table-cell (sitting beside the
+// content column) - below that the nav is a normal stacked block above the
+// content, so sticky there would just pin it over the page while scrolling
+// on mobile. Kept as a CSS class (not inline styles) because inline styles
+// can't express the media query.
+const SIDENAV_CLASS_NAME = 'sidebar side-nav-alt docquery-sidenav';
+
+// sessionStorage key used to hand off "scroll to this section" across a
+// full page navigation. Deliberately NOT a URL #hash: global.js (FEC's own
+// bundle, loaded in ScriptLoader.tsx) runs `$(window.location.hash)
+// .offset().top` on page load whenever the URL has a hash, before React
+// has fetched/rendered the summary page's sections - the selector matches
+// nothing yet, .offset() returns undefined on the empty jQuery set, and
+// .top throws. SummaryDetailPage.tsx reads this key itself once its own
+// data has actually rendered, instead.
+export const SUMMARY_SCROLL_TARGET_KEY = 'docquery:scrollToSection';
 
 interface ScheduleSidenavProps {
   reportId: string;
@@ -13,6 +52,7 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
   const pathname = usePathname();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [committeeId, setCommitteeId] = useState<string>('');
+  const [formType, setFormType] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -23,21 +63,18 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
       try {
         setLoading(true);
         const data: SchedulesResponse = await scheduleApi.getSchedulesByRepid(reportId);
-        setSchedules(data.data);
+        const visibleSchedules = data.data.filter((s) => !HIDDEN_SCHEDULES.has(s.schedule.toUpperCase()));
+        setSchedules(visibleSchedules);
 
-        // Safely access committeeId with optional chaining
         if (data.meta?.committeeId) {
           setCommitteeId(data.meta.committeeId);
         }
 
-        // Check if there's a message (when no schedules available)
-        if (data.message) {
-          setMessage(data.message);
-        }
+        setFormType(data.meta?.formType ?? null);
 
-        // Set first schedule as active by default
-        if (data.data.length > 0) {
-          setActiveTab(data.data[0].schedule);
+        // No schedules available for this report
+        if (visibleSchedules.length === 0) {
+          setMessage('No schedules available for this report');
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load schedules');
@@ -51,6 +88,58 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
     }
   }, [reportId]);
 
+  const summarySections = getFormSummarySections(formType);
+  const summaryPageUrl = `/forms/${committeeId}/${reportId}`;
+  const onSummaryPage = pathname === summaryPageUrl;
+
+  // Keep the expanded group in sync with whichever page is actually
+  // showing: if the current URL is a schedule's own page (e.g.
+  // /forms/{cmte}/{repid}/SA/11AI), expand that schedule; otherwise fall
+  // back to SUMMARY (if this form type has one) or the first schedule.
+  // Re-derived locally (no refetch) whenever the URL or the loaded data
+  // changes.
+  useEffect(() => {
+    const sections = getFormSummarySections(formType);
+    if (schedules.length === 0 && sections.length === 0) return;
+
+    const pathSegments = pathname.split('/').filter(Boolean);
+    const scheduleFromPath = schedules.find((s) =>
+      pathSegments.some((segment) => segment.toUpperCase() === s.schedule.toUpperCase())
+    );
+
+    if (scheduleFromPath) {
+      setActiveTab(scheduleFromPath.schedule);
+    } else if (sections.length > 0) {
+      setActiveTab(SUMMARY_TAB);
+    } else if (schedules.length > 0) {
+      setActiveTab(schedules[0].schedule);
+    }
+  }, [pathname, schedules, formType]);
+
+  const handleSummaryHeaderClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    setActiveTab(SUMMARY_TAB);
+  };
+
+  const handleSummarySectionClick = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
+    e.preventDefault();
+    setActiveTab(SUMMARY_TAB);
+
+    if (onSummaryPage) {
+      // Already on the summary page - just scroll to the section.
+      const target = document.getElementById(sectionId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
+
+    // Navigate WITHOUT a #hash (see SUMMARY_SCROLL_TARGET_KEY above) and
+    // let SummaryDetailPage.tsx scroll to it once its data has rendered.
+    sessionStorage.setItem(SUMMARY_SCROLL_TARGET_KEY, sectionId);
+    router.push(summaryPageUrl);
+  };
+
   const handleScheduleClick = (e: React.MouseEvent<HTMLAnchorElement>, scheduleId: string) => {
     e.preventDefault();
     setActiveTab(scheduleId);
@@ -62,17 +151,21 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
     }
   };
 
+  // Schedules with no real line number route to a flat page (no
+  // [line_num] segment) - see SCHEDULES_WITHOUT_REQUIRED_LINE_NUMBER above.
+  const getSubLinkUrl = (schedule: string, lineNum: string) =>
+    SCHEDULES_WITHOUT_REQUIRED_LINE_NUMBER.has(schedule.toUpperCase())
+      ? `/forms/${committeeId}/${reportId}/${schedule}`
+      : `/forms/${committeeId}/${reportId}/${schedule}/${lineNum}`;
+
   const handleSubLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, schedule: string, lineNum: string) => {
     e.preventDefault();
-
-    // Build URL with committeeId from meta
-    const url = `/forms/${committeeId}/${reportId}/${schedule}/${lineNum}`;
-    router.push(url);
+    router.push(getSubLinkUrl(schedule, lineNum));
   };
 
   if (loading) {
     return (
-      <nav className="sidebar side-nav-alt">
+      <nav className={SIDENAV_CLASS_NAME}>
         <div className="loading">Loading schedules...</div>
       </nav>
     );
@@ -80,7 +173,7 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
 
   if (error) {
     return (
-      <nav className="sidebar side-nav-alt">
+      <nav className={SIDENAV_CLASS_NAME}>
         <div className="error">Error: {error}</div>
       </nav>
     );
@@ -88,17 +181,44 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
 
 
   // Show message when no schedules are available
-    if (schedules.length === 0 && message) {
+    if (schedules.length === 0 && message && summarySections.length === 0) {
       return (
-        <nav className="sidebar side-nav-alt" style={{ paddingRight: '1rem' }}>
+        <nav className={SIDENAV_CLASS_NAME} style={{ paddingRight: '1rem' }}>
           <div className="message" style={{ padding: '1rem' }}>{message}</div>
         </nav>
       );
     }
 
   return (
-    <nav className="sidebar side-nav-alt">
+    <nav className={SIDENAV_CLASS_NAME}>
       <ul className="tablist" role="tablist" data-name="tab">
+        {summarySections.length > 0 && (
+          <li className="side-nav__item" role="presentation">
+            <a
+              className={`side-nav__link ${activeTab === SUMMARY_TAB ? 'active' : ''}`}
+              role="tab"
+              tabIndex={0}
+              aria-selected={activeTab === SUMMARY_TAB}
+              href={summaryPageUrl}
+              onClick={handleSummaryHeaderClick}
+            >
+              FORM SUMMARY
+            </a>
+            <ul>
+              {summarySections.map((section) => (
+                <li key={section.id}>
+                  <a
+                    href={`${summaryPageUrl}#${section.id}`}
+                    onClick={(e) => handleSummarySectionClick(e, section.id)}
+                  >
+                    {section.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </li>
+        )}
+
         {schedules.map((schedule, index) => (
           <li className="side-nav__item" role="presentation" key={schedule.schedule}>
             <a
@@ -118,7 +238,7 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
                 {schedule.subLinks.map((subLink) => (
                   <li key={subLink.lineNum}>
                     <a
-                      href={`/forms/${committeeId}/${reportId}/${schedule.schedule}/${subLink.lineNum}`}
+                      href={getSubLinkUrl(schedule.schedule, subLink.lineNum)}
                       onClick={(e) => handleSubLinkClick(e, schedule.schedule, subLink.lineNum)}
                     >
                       Line {subLink.lineNum}

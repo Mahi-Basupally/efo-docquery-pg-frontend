@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Breadcrumbs from '@/components/Breadcrumbs';
-import ScheduleSidenav from '@/components/SideNav';
+import ScheduleSidenav, { SUMMARY_SCROLL_TARGET_KEY } from '@/components/SideNav';
 import { ChevronDown, ChevronUp, ExternalLink, X } from 'lucide-react';
-import { reportsApi, Report } from '@/lib/api/reports';
+import { reportsApi, BasicInfo } from '@/lib/api/reports';
 import { apiClient } from '@/lib/api/client';
 import type { Column, Section, SectionLine, SummaryData } from '@/lib/api/types';
 import type { F3XReportData } from '@/lib/api/f3x';
 import F3XReport from '@/components/forms/f3x/f3x_rendering';
+import FormCommitteeBasicInfo from '@/components/forms/FormCommitteeBasicInfo';
+import { getFormTypeLabel } from '@/lib/formTypeUtils';
 
 // ============================================================================
 // Components
@@ -46,7 +48,7 @@ export default function ReportDetailPage() {
   const repId = params.rep_id as string;
   const cmteId = params.cand_cmte_id as string;
 
-  const [report, setReport] = useState<Report | null>(null);
+  const [report, setReport] = useState<BasicInfo | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [f3xData, setF3xData] = useState<F3XReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +72,7 @@ export default function ReportDetailPage() {
         setCommitteeMismatch(false);
         setMismatchEntityId(null);
 
-        const reportResponse = await reportsApi.getReportById(repId);
+        const reportResponse = await reportsApi.getBasicInfo(repId);
         setReport(reportResponse.data);
 
         try {
@@ -134,12 +136,28 @@ export default function ReportDetailPage() {
   }, [repId, cmteId]);
 
   useEffect(() => {
-    const name = summary?.candidate?.candidateName || summary?.committee?.name || f3xData?.committee?.name || report?.committeeName;
+    const name = report?.committeeName || summary?.candidate?.candidateName || summary?.committee?.name || f3xData?.committee?.name;
     document.title = name ? `${name} - EFO DocQuery` : 'EFO DocQuery';
     return () => {
       document.title = 'EFO DocQuery';
     };
-  }, [summary?.candidate?.candidateName, summary?.committee?.name, f3xData?.committee?.name, report?.committeeName]);
+  }, [report?.committeeName, summary?.candidate?.candidateName, summary?.committee?.name, f3xData?.committee?.name]);
+
+  // Scroll to whatever section the sidenav asked for (see SideNav.tsx's
+  // SUMMARY_SCROLL_TARGET_KEY) once its sections have actually rendered.
+  // Deliberately not a URL #hash - global.js's own on-load hash-scroll
+  // handler runs before this page's data has loaded and throws.
+  useEffect(() => {
+    if (loading) return;
+    const sectionId = sessionStorage.getItem(SUMMARY_SCROLL_TARGET_KEY);
+    if (!sectionId) return;
+
+    sessionStorage.removeItem(SUMMARY_SCROLL_TARGET_KEY);
+    const target = document.getElementById(sectionId);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loading, summary, f3xData]);
 
   // ============================================================================
   // Utility Functions (generic/legacy rendering path - unchanged, used by
@@ -526,9 +544,13 @@ export default function ReportDetailPage() {
   const metadata = isF3X ? f3xData?.metadata : summary?.metadata;
   const committee = isF3X ? f3xData?.committee : summary?.committee;
   const candidate = isF3X ? undefined : summary?.candidate;
-  const displayName = candidate?.candidateName || committee?.name || report?.committeeName || '';
-  const displayId = candidate?.candidateId || committee?.id || report?.committeeId || '';
-  const reportId = metadata?.reportId || report?.reportId;
+  // Header always reflects efo.reps_view (via reportsApi.getBasicInfo), the
+  // same source every other [rep_id] page uses - not the form-specific
+  // summary data, which can disagree (e.g. a committee's as-filed name on
+  // one report vs. its current master record).
+  const displayName = report?.committeeName || candidate?.candidateName || committee?.name || '';
+  const displayId = report?.committeeId || candidate?.candidateId || committee?.id || '';
+  const reportId = report?.reportId || metadata?.reportId;
 
   const breadcrumbItems = [
     { label: 'Home', href: 'https://www.fec.gov' },
@@ -538,26 +560,18 @@ export default function ReportDetailPage() {
     { label: 'Summary', href: `/forms/${displayId}/${repId}` },
   ];
 
-  const formTypeMap = {  F: 'FORM',  
-    F3X: 'FORM 3X', F3: 'FORM 3',F3P: 'FORM 3P', F3PS: 'FORM 3PS', F1: 'FORM 1',F1M: 'FORM 1M',
-    F2: 'FORM 2', F4: 'FORM 4', F5: 'FORM 5', F6: 'FORM 6', F7: 'FORM 7', F8: 'FORM 8', F9: 'FORM 9',
-    F99: 'FORM 99',
-
-  };
-
   return (
     <>
       <Breadcrumbs items={breadcrumbItems} />
-      <div className="u-padding--left u-padding--right tab-interface">
-        <header className="main">
-          <h1 className="entity__name content__section--narrow">{displayName}</h1>
-          <div className="heading--section"><span className="t-data t-bold entity__type">ID: {displayId}</span><span className="t-data t-bold entity__type">Report ID: FEC-{reportId}</span></div>
-        </header>
+      <div className="u-padding--left u-padding--right tab-interface" style={{ overflow: 'visible' }}>
+        <FormCommitteeBasicInfo name={displayName} id={displayId} reportId={reportId} reportType={report?.reportType} />
 
         <div className="data-container__wrapper">
           {reportId && <ScheduleSidenav reportId={String(reportId)} />}
           <section id="section-1" className="tab-content" role="tabpanel">
-            <h2 id="section-1-heading">  {formTypeMap[metadata?.formType] || metadata?.formType || 'FORM'} (FEC-{reportId})</h2>
+            <h2 id="section-1-heading">
+              {getFormTypeLabel(metadata?.formType)} (FEC-{reportId})
+            </h2>
             <div className="slab slab--inline slab--neutral u-padding--left u-padding--right">
               <div className="row content__section">
                 <div id="report" className="entity__figure row" style={{ overflowX: 'visible' }}>

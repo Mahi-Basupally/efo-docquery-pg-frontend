@@ -1,7 +1,7 @@
 'use client';
 
-import F3F3PReportPage from '@/components/forms/F3F3PReportPage';
+import ReportSummaryPage from '@/components/forms/ReportSummaryPage';
 
 export default function Page() {
-  return <F3F3PReportPage />;
+  return <ReportSummaryPage />;
 }

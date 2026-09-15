@@ -1,110 +1,90 @@
 import { apiClient } from './client';
+import type { PaginationMeta } from './types';
 
-// Version 4+ Record (DOC_H1_VIEW)
-export interface H1RecordV4 {
-  transaction_id: string;
-  committee_id: string;
-  rep_id: number;
-  image_no: number;
-  rel_line_no: number;
-  // Section A - State and Local Party Committees (Fixed Percentage)
-  pres_only_yr: string | null;
-  pres_sen_yr: string | null;
-  sen_only_yr: string | null;
-  non_pres_sen_yr: string | null;
-  // Section B - Separate Segregated Funds and Nonconnected Committees
-  fed_pct: number | null;
-  nonfed_pct: number | null;
-  min_fed_pct: number | null;
-  admin_ratio_appl: string | null;
-  gen_vd_ratio_appl: string | null;
-  pub_crp_ratio_appl: string | null;
-  memo_cd: string | null;
-  memo_text: string | null;
-  [key: string]: any;
-}
-
-// Version 3 Record (Legacy H1 table)
+// Older filings ("V3" layout in H1/page.tsx) - efo.h1's nat_rate/hs_*/
+// est_*/act_*/pres/sen/hse/subtotal/gov/other_sw/state_*/local/extra/sub/
+// total columns, camelCased by h1_service.py's FIELD_MAP.
 export interface H1RecordV3 {
-  repid: number;
-  rel_lineno: number;
-  comid: string;
-  tran_id: string;
-  imageno: number;
-  amend: string | null;
-  // National rate
-  nat_rate: number | null;
-  // House/Senate minimum
-  hs_min: number | null;
-  hs_persupport: number | null;
-  hs_pernonfed: number | null;
-  hs_actsupport: number | null;
-  hs_actnonfed: number | null;
-  hs_actperfed: number | null;
-  // SSF/Non-connected
-  est_persupport: number | null;
-  est_pernonfed: number | null;
-  act_support: number | null;
-  act_nonfed: number | null;
-  act_perfed: number | null;
-  // Ballot composition (State/Local Party)
-  pres: string | null;
-  sen: string | null;
-  hse: string | null;
+  transactionId: string | null;
+  memoCode: string | null;
+  memoText: string | null;
+  nationalPartyRate: number | null;
+  houseSenateMinimumPercentage: number | null;
+  houseSenatePercentFederalSupport: number | null;
+  houseSenatePercentNonFederal: number | null;
+  houseSenateActualFederalSupport: number | null;
+  houseSenateActualNonFederal: number | null;
+  houseSenateActualPercentFederal: number | null;
+  estimatedPercentFederalSupport: number | null;
+  estimatedPercentNonFederal: number | null;
+  actualFederalSupport: number | null;
+  actualNonFederal: number | null;
+  actualPercentFederal: number | null;
+  presidential: string | null;
+  senate: string | null;
+  house: string | null;
   subtotal: string | null;
-  gov: string | null;
-  other_sw: string | null;
-  state_sen: string | null;
-  state_rep: string | null;
+  governor: string | null;
+  otherStatewide: string | null;
+  stateSenate: string | null;
+  stateRepresentative: string | null;
   local: string | null;
   extra: string | null;
-  sub: string | null;
+  subTotal: string | null;
   total: string | null;
-  fed_per: number | null;
-  [key: string]: any;
+  federalPercentage: string | number | null;
+  [key: string]: unknown;
+}
+
+// Newer filings ("V4+" layout in H1/page.tsx) - efo.h1's slp_*/federal/
+// non_federal/admin_ratio/gen_vd_ratio/pub_crp_ratio columns, camelCased
+// by h1_service.py's FIELD_MAP.
+export interface H1RecordV4 {
+  transactionId: string | null;
+  memoCode: string | null;
+  memoText: string | null;
+  presidentialOnlyYear: string | null;
+  presidentialSenateYear: string | null;
+  senateOnlyYear: string | null;
+  nonPresidentialSenateYear: string | null;
+  federalPercentage: string | number | null;
+  nonFederalPercentage: string | number | null;
+  administrativeRatioApplicable: string | null;
+  genericVoterDriveRatioApplicable: string | null;
+  publicCommunicationsRatioApplicable: string | null;
+  [key: string]: unknown;
 }
 
 export type H1Record = H1RecordV3 | H1RecordV4;
 
-export interface H1CommitteeDetails {
-  filing_type: string;
-  repid: number;
-  comid: string;
-  entity: string;
-  cmte_name: string;
-  form_type: string;
-  cand_last_name: string | null;
-  cand_first_name: string | null;
-  cand_middle_name: string | null;
-  cand_prefix_name: string | null;
-  cand_suffix_name: string | null;
-  street_1: string | null;
-  street_2: string | null;
-  city: string | null;
-  state: string | null;
-  zip: string | null;
-}
-
-export interface H1Meta {
-  committeeDetails: H1CommitteeDetails | null;
-  reportId: string;
-  totalRecords: number;
-  version: number | null;
-}
-
 export interface H1Response {
   data: H1Record[];
-  meta: H1Meta;
+  meta: {
+    reportId: string | number;
+    committeeId: string | null;
+    schedule: string;
+    lineNumber: string;
+    version: number | null;
+    pagination: PaginationMeta;
+  };
 }
 
 export const h1Api = {
-  /**
-   * Get Schedule H1 allocation method data for a report
-   */
-  getH1Data: async (repId: string): Promise<H1Response> => {
-    const url = `/h1/${repId}`;
-    const response = await apiClient.get<H1Response>(url);
-    return response;
+  // H1 has no real line number (see h1_service.py) - calls the line-less
+  // form of the endpoint directly rather than passing a synthetic value.
+  getH1Data: async (
+    repid: string,
+    params: { page?: number; perPage?: number } = {}
+  ): Promise<H1Response> => {
+    const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.set('page', String(params.page));
+    if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
+
+    const query = queryParams.toString();
+    const response = await apiClient.get<H1Response>(
+      `/reports/${repid}/schedules/H1${query ? `?${query}` : ''}`
+    );
+    return response.data;
   },
 };
 
