@@ -1,11 +1,12 @@
 /**
- * F3X report data contract and API client.
- *
- * The backend supplies report data. F3X presentation metadata is kept in
- * src/components/forms/f3xDefinition.ts and applied by the renderer.
+ * Superseded: the active F3X renderer (src/components/forms/f3x/
+ * f3x_rendering.tsx) now declares its own F3XReportData locally, matching
+ * the verified real f3x_service.py contract (named section keys, no
+ * `sections` array - the shape below never actually matched the backend).
+ * This file is kept only because f3x/_legacy/f3x_rendering.tsx (the
+ * archived pre-rewrite version) still imports it.
  */
 
-import { apiClient } from './client';
 import type { Committee, Metadata } from './types';
 
 export interface F3XFormDetailLine {
@@ -34,16 +35,8 @@ export interface F3XSection {
 export interface F3XReportData {
   metadata: Metadata;
   committee?: Committee;
+  // Backend's actual reportId field (f3x_service.py) - metadata.reportId is
+  // never populated despite the Metadata type declaring it required.
+  report?: { reportId?: string | number };
   sections: F3XSection[];
 }
-
-export interface F3XReportResponse {
-  data: F3XReportData;
-}
-
-export const f3xApi = {
-  getReport: async (reportId: string): Promise<F3XReportResponse> => {
-    const response = await apiClient.get<F3XReportResponse>(`/reports/${reportId}`);
-    return response.data;
-  },
-};

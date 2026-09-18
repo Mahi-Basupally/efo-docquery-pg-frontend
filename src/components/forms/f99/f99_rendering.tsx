@@ -9,5 +9,9 @@ export interface F99ReportProps {
 // F99 is a single Form Details section (no financial lines), so there's
 // nothing per-line to define.
 export default function F99Report({ data }: F99ReportProps) {
-  return <FinancialReportRenderer data={data} definitions={{}} formPrefix="f99-line-" />;
+  return (
+    <div className="slab slab--inline slab--neutral u-padding--left u-padding--right">
+      <FinancialReportRenderer data={data} definitions={{}} />
+    </div>
+  );
 }

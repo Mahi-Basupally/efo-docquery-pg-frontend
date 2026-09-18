@@ -26,16 +26,22 @@ body {
   height: auto;
 }
 
-/* Schedule sidenav (src/components/SideNav.tsx): sticky only once
-   .side-nav-alt's own CSS switches it to table-cell layout (>=40em) and it
-   sits beside the content column. Below that it's a normal stacked block
-   above the content, so sticky there just pins it over the page as you
-   scroll - keep it static on mobile. */
+/* Schedule sidenav (src/components/SideNav.tsx): sticky only once it
+   actually sits beside the content column instead of stacked above it.
+   .side-nav-alt itself switches to table-cell at >=40em, but
+   .data-container__wrapper (entity.css) - the flex row that actually puts
+   it next to the content - only does that at >=53.75em; below that
+   .data-container__wrapper has no layout rule of its own (plain stacked
+   block), and a max-width:940px rule even re-forces .side-nav-alt back to
+   display:block in that gap. Sticky-ing it at the lower 40em breakpoint
+   pins a still-stacked block over the page as you scroll (an iPad-class
+   viewport in the 640-940px gap, e.g. 834px, hits this every time) -
+   match .data-container__wrapper's own breakpoint instead. */
 .docquery-sidenav {
   position: static;
 }
 
-@media (min-width: 40em) {
+@media (min-width: 53.75em) {
   .docquery-sidenav {
     position: sticky;
     top: 1.5rem;

@@ -71,12 +71,12 @@ export const scheduleC1Api = {
     params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleC1Response> => {
     const queryParams = new URLSearchParams();
+    queryParams.set('lineNumber', lineNum);
     if (params.page !== undefined) queryParams.set('page', String(params.page));
     if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    const query = queryParams.toString();
     const response = await apiClient.get<ScheduleC1Response>(
-      `/reports/${repid}/schedules/SC1/${lineNum}${query ? `?${query}` : ''}`
+      `/reports/${repid}/schedules/SC1?${queryParams.toString()}`
     );
     return response.data;
   },

@@ -1,13 +1,7 @@
 import { apiClient } from './client';
 import type { SummaryResponse } from './types';
 
-// Fields shared by every row reports_service.py's FIELD_MAP produces -
-// GET /reports/{repid}/filing-info (one report) and GET /reports/
-// {cand_cmte_id}/filings (a list) both build on it. Not exported - BasicInfo
-// and Filing below are the real public contracts, since the two endpoints
-// diverge on entity identity shape (a filing-info report always belongs to
-// exactly one committee; a filings-list row can be for a candidate instead)
-// and Filing alone carries formCategory.
+
 interface ReportFields {
   reportId: string | number;
   formType: string;

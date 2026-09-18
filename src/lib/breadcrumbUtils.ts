@@ -20,7 +20,7 @@ interface BreadcrumbData {
  * Builds breadcrumb items from committee and schedule data
  * Matches the logic from the JSP template
  */
-export function buildBreadcrumbs(data?: BreadcrumbData): BreadcrumbItem[] {
+export function buildBreadcrumbs(data?: BreadcrumbData, filingMethod = 'forms'): BreadcrumbItem[] {
   const items: BreadcrumbItem[] = [
     {
       label: 'Home',
@@ -44,7 +44,7 @@ export function buildBreadcrumbs(data?: BreadcrumbData): BreadcrumbItem[] {
   if (committeeDetails?.committeeName && committeeDetails?.committeeId) {
     items.push({
       label: committeeDetails.committeeName,
-      href: `/forms/${committeeDetails.committeeId}`,
+      href: `/${filingMethod}/${committeeDetails.committeeId}`,
     })
   }
 
@@ -52,7 +52,7 @@ export function buildBreadcrumbs(data?: BreadcrumbData): BreadcrumbItem[] {
   if (scheduleDetails?.reportId && committeeDetails?.committeeId) {
     items.push({
       label: 'Summary',
-      href: `/forms/${committeeDetails.committeeId}/${scheduleDetails.reportId}`,
+      href: `/${filingMethod}/${committeeDetails.committeeId}/${scheduleDetails.reportId}`,
     })
   }
 
@@ -64,7 +64,7 @@ export function buildBreadcrumbs(data?: BreadcrumbData): BreadcrumbItem[] {
   ) {
     items.push({
       label: scheduleDetails.scheduleType,
-      href: `/forms/${committeeDetails.committeeId}/${scheduleDetails.reportId}/${scheduleDetails.scheduleType}`,
+      href: `/${filingMethod}/${committeeDetails.committeeId}/${scheduleDetails.reportId}/${scheduleDetails.scheduleType}`,
     })
   }
 

@@ -66,12 +66,12 @@ export const scheduleBApi = {
     params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleBResponse> => {
     const queryParams = new URLSearchParams();
+    queryParams.set('lineNumber', lineNum);
     if (params.page !== undefined) queryParams.set('page', String(params.page));
     if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    const query = queryParams.toString();
     const response = await apiClient.get<ScheduleBResponse>(
-      `/reports/${repid}/schedules/SB/${lineNum}${query ? `?${query}` : ''}`
+      `/reports/${repid}/schedules/SB?${queryParams.toString()}`
     );
     return response.data;
   },

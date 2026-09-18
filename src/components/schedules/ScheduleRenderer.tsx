@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import ReportTable, { ReportTableColumn, ReportTableRow } from '@/components/tables/ReportTable';
 import type { PaginationMeta } from '@/lib/api/types';
+import { formatDate } from '@/lib/basicFormattingUtils';
 
 export type ScheduleCellFormat = 'text' | 'currency' | 'date';
 
@@ -42,21 +43,10 @@ const formatCurrency = (value: unknown): string => {
   }).format(amount);
 };
 
-const formatDate = (value: unknown): string => {
-  if (!value) return '-';
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  }).format(date);
-};
-
 const formatValue = (value: unknown, format: ScheduleCellFormat = 'text'): ReactNode => {
   if (value === null || value === undefined || value === '') return '-';
   if (format === 'currency') return formatCurrency(value);
-  if (format === 'date') return formatDate(value);
+  if (format === 'date') return formatDate(value as string) || '-';
   return String(value);
 };
 

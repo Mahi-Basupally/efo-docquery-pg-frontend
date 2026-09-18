@@ -9,6 +9,7 @@ export const FORM_TYPE_LABELS: Record<string, string> = {
   F3S: 'FORM 3S',
   F3P: 'FORM 3P',
   F3PS: 'FORM 3PS', 
+  F3L: 'FORM 3L',
   F1: 'FORM 1', 
   F1M: 'FORM 1M',
   F2: 'FORM 2', 

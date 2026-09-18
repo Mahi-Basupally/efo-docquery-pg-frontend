@@ -1,33 +1,52 @@
 'use client';
 
 import ReportTable, { ReportTableColumn, ReportTableRow } from '@/components/tables/ReportTable';
+import { getFecImageUrl } from '@/lib/fecImageUtils';
+import { formatSignatureName, formatDate } from '@/lib/basicFormattingUtils';
 
-// F1M's data-only contract (app/services/forms/f1m_service.py): sections
-// carry no type/columns/sectionOrder and lines carry no displayOrder - the
-// backend already emits everything pre-sorted. Instructional/legal-text
-// lines (formerly "type": "merge") are inline {lineNumber?, note} lines
-// rather than a section-level note, since committee_info and candidates
-// each interleave several of these among their data rows. Like F1/F2, this
-// doesn't fit FinancialReportRenderer's fixed line shapes, so this
-// component knows each section's columns by its id.
-
-export interface F1MInfoLine { lineNumber?: string; description: string; value?: string | number | null; }
+export interface F1MInfoLine { lineNumber?: string; description: string; value?: string | number | null; href?: string; }
 export interface F1MNoteLine { lineNumber?: string; note: string; }
 export interface F1MCandidateLine { lineNumber: string; candidateId?: string; candidateName?: string; candidateOffice?: string; contributionDate?: string; }
 
 export type F1MLine = F1MInfoLine | F1MNoteLine | F1MCandidateLine;
 
-export interface F1MSection {
-  id: string;
-  title: string;
-  subtitle?: string;
-  lines: F1MLine[];
-}
-
 export interface F1MReportData {
-  metadata?: { formType?: string; reportId?: string | number; formTitle?: string; formSubTitle?: string };
-  committee?: { committeeName?: string; committeeAddress?: string };
-  sections: F1MSection[];
+  metadata?: { formTitle?: string; formSubTitle?: string };
+  form?: { formType?: string; formatVersion?: string };
+  committee?: {
+    id?: string;
+    name?: string;
+    address?: {
+      street1?: string | null;
+      street2?: string | null;
+      city?: string | null;
+      state?: string | null;
+      zipCode?: string | null;
+    };
+  };
+  report?: {
+    reportId?: string | number;
+    amendmentIndicator?: string;
+    filedDate?: string | null;
+    dateSigned?: string | null;
+    imageNumber?: number | string | null;
+    committeeType?: string;
+    affiliationDate?: string | null;
+    affiliatedCommitteeId?: string | null;
+    affiliatedCommitteeName?: string | null;
+    contributor51Date?: string | null;
+    originalRegistrationDate?: string | null;
+    metRequirementDate?: string | null;
+    treasurerSignature?: {
+      firstName?: string | null;
+      middleName?: string | null;
+      lastName?: string | null;
+      prefix?: string | null;
+      suffix?: string | null;
+    };
+  };
+  statusByAffiliation?: { lines: F1MLine[] };
+  candidates?: { lines: F1MLine[] };
 }
 
 export interface F1MReportProps {
@@ -45,36 +64,135 @@ const twoColumnInfo: ReportTableColumn[] = [
   { key: 'value', label: 'Value', width: '50%' },
 ];
 
-const SECTION_COLUMNS: Record<string, ReportTableColumn[]> = {
-  committee_information: infoColumns,
-  candidates: [
-    { key: 'lineNumber', label: 'Line #', width: '10%' },
-    { key: 'candidateId', label: 'Candidate ID', width: '15%' },
-    { key: 'candidateName', label: 'Candidate Name', width: '30%' },
-    { key: 'candidateOffice', label: 'Office-State-District', width: '30%' },
-    { key: 'contributionDate', label: 'Contribution Date', width: '15%' },
-  ],
-  signature: twoColumnInfo,
+interface RenderSection {
+  id: string;
+  title: string;
+  subtitle?: string;
+  columns: ReportTableColumn[];
+  lines: F1MLine[];
+}
+
+const buildCommitteeInformationLines = (data: F1MReportData): F1MInfoLine[] => {
+  const committee = data.committee;
+  const report = data.report;
+  const lines: F1MInfoLine[] = [];
+
+  if (committee?.name) {
+    lines.push({ lineNumber: '1. (a)', description: 'Committee Name', value: committee.name });
+  }
+
+  const address = committee?.address;
+  if (address?.street1) {
+    lines.push({ lineNumber: '1. (b)', description: 'Street Address', value: address.street1 });
+  }
+  if (address?.street2) {
+    lines.push({ lineNumber: '', description: 'Street Address Line 2', value: address.street2 });
+  }
+
+  const cityStateZip = [address?.city, address?.state, address?.zipCode].filter(Boolean).join(', ');
+  if (cityStateZip) {
+    lines.push({ lineNumber: '1. (c)', description: 'City, State, ZIP', value: cityStateZip });
+  }
+
+  if (committee?.id) {
+    lines.push({ lineNumber: '2', description: 'Committee ID', value: committee.id });
+  }
+
+  lines.push({ lineNumber: '3', description: 'Committee Type', value: report?.committeeType ?? '' });
+
+  if (report?.affiliationDate) {
+    lines.push({ description: 'Affiliation Date', value: formatDate(report.affiliationDate) });
+  }
+  if (report?.contributor51Date) {
+    lines.push({ description: 'Contributor 51 Date', value: formatDate(report.contributor51Date) });
+  }
+  if (report?.originalRegistrationDate) {
+    lines.push({ description: 'Original Registration Date', value: formatDate(report.originalRegistrationDate) });
+  }
+  if (report?.metRequirementDate) {
+    lines.push({ description: 'Met Requirement Date', value: formatDate(report.metRequirementDate) });
+  }
+
+  return lines;
 };
+
+
+
+
+const buildSignatureLines = (data: F1MReportData): F1MInfoLine[] => {
+  const report = data.report;
+  const lines: F1MInfoLine[] = [];
+
+  const signedBy = formatSignatureName(report?.treasurerSignature);
+  if (signedBy) lines.push({ description: 'Signed By Treasurer', value: signedBy });
+  if (report?.dateSigned) lines.push({ description: 'Date Signed', value: formatDate(report.dateSigned) });
+  if (report?.filedDate) lines.push({ description: 'Filed Date', value: formatDate(report.filedDate) });
+  if (report?.imageNumber) {
+    lines.push({ description: 'Image Number', value: report.imageNumber, href: getFecImageUrl(report.imageNumber) });
+  }
+
+  return lines;
+};
+
+const buildSections = (data: F1MReportData): RenderSection[] => [
+  {
+    id: 'committeeInformation',
+    title: 'Committee Information',
+    subtitle: 'Information about the multicandidate committee',
+    columns: infoColumns,    
+    lines: [...buildCommitteeInformationLines(data), ...(data.statusByAffiliation?.lines ?? [])],
+  },
+  {
+    id: 'candidates',
+    title: 'STATUS BY QUALIFICATION',
+    columns: [
+      { key: 'lineNumber', label: 'Line #', width: '10%' },
+      { key: 'candidateId', label: 'Candidate ID', width: '15%' },
+      { key: 'candidateName', label: 'Candidate Name', width: '30%' },
+      { key: 'candidateOffice', label: 'Office-State-District', width: '30%' },
+      { key: 'contributionDate', label: 'Contribution Date', width: '15%' },
+    ],
+    lines: data.candidates?.lines ?? [],
+  },
+  {
+    id: 'signature',
+    title: 'Signature',
+    columns: twoColumnInfo,
+    lines: buildSignatureLines(data),
+  },
+];
 
 const isNoteLine = (line: F1MLine): line is F1MNoteLine => 'note' in line && line.note !== undefined;
 const cellText = (value: unknown): string => (value === null || value === undefined || value === '' ? '-' : String(value));
 
-function buildRows(section: F1MSection, columns: ReportTableColumn[]): ReportTableRow[] {
+function buildRows(section: RenderSection): ReportTableRow[] {
   return section.lines.map((line, idx) => {
     if (isNoteLine(line)) {
       return {
         id: `${section.id}-${idx}`,
-        fullWidth: { content: line.note, contentColSpan: columns.length },
+        fullWidth: { lead: line.lineNumber || undefined, content: line.note },
         style: { fontStyle: 'italic', fontWeight: 400 },
       };
     }
 
     const record = line as unknown as Record<string, unknown>;
+    const href = 'href' in record ? (record.href as string | undefined) : undefined;
     return {
       id: `${section.id}-${idx}`,
       cells: Object.fromEntries(
-        columns.map((col) => [col.key, <span style={{ whiteSpace: 'pre-line' }}>{cellText(record[col.key])}</span>])
+        section.columns.map((col) => {
+          if (col.key === 'value' && href) {
+            return [col.key, (
+              <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-900 underline">
+                {cellText(record[col.key])}
+              </a>
+            )];
+          }
+          const value = col.key === 'contributionDate'
+            ? formatDate(record[col.key] as string) || '-'
+            : cellText(record[col.key]);
+          return [col.key, <span style={{ whiteSpace: 'pre-line' }}>{value}</span>];
+        })
       ),
     };
   });
@@ -82,21 +200,22 @@ function buildRows(section: F1MSection, columns: ReportTableColumn[]): ReportTab
 
 export default function F1MReport({ data }: F1MReportProps) {
   return (
-    <div>
-      {data.sections.map((section) => {
-        const columns = SECTION_COLUMNS[section.id] ?? infoColumns;
-        return (
+    <div className="slab slab--inline slab--neutral u-padding--left u-padding--right">
+      <div className="entity__figure entity__figure--narrow">      
+      {buildSections(data)
+        .filter((section) => section.lines.length > 0)
+        .map((section) => (
           <ReportTable
             key={section.id}
             id={section.id}
             title={section.title}
             subtitle={section.subtitle}
-            columns={columns}
-            rows={buildRows(section, columns)}
+            columns={section.columns}
+            rows={buildRows(section)}
             emptyMessage="No data available."
           />
-        );
-      })}
+        ))}
+    </div>
     </div>
   );
 }

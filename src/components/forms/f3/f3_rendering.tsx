@@ -1,378 +1,98 @@
 'use client';
 
 import FinancialReportRenderer, { FinancialReportData } from '../FinancialReportRenderer';
-import ReportTable, { ReportTableColumn, ReportTableRow } from '@/components/tables/ReportTable';
+import ReportDetailsHeader, { ReportDetailsHeaderData } from '../ReportDetailsHeader';
 import { F3_LINE_DEFINITIONS } from './f3Definition';
 
-export interface F3ReportProps {
-  data: F3ReportData | F3ReportResponse;
-}
 
-export type F3ReportData = Omit<FinancialReportData, 'sections'> & {
-  sections?: FinancialReportData['sections'];
-  schemaVersion?: string;
-  schemaType?: string;
-  form?: {
-    formType?: string;
-    formVersion?: string;
-    formName?: string;
-    formTitle?: string;
-    formSubTitle?: string;
+export interface F3ReportData {
+  metadata?: { formTitle?: string; formSubTitle?: string };
+  form?: { formType?: string; formatVersion?: string };
+  committee?: {
+    id?: string;
+    name?: string;
+    address?: {
+      street1?: string | null;
+      street2?: string | null;
+      city?: string | null;
+      state?: string | null;
+      zipCode?: string | null;
+    };
+    changeOfAddress?: boolean;
   };
   report?: {
     reportId?: string | number;
     committeeId?: string;
-    reportNumber?: string | number | null;
-    reportCode?: string;
     reportType?: string;
-    reportTypeDescription?: string;
     amendmentIndicator?: string;
-    fileNumber?: string | number | null;
     filedDate?: string | null;
-    coveragePeriod?: {
-      from?: string | null;
-      through?: string | null;
-    };
-    election?: {
-      state?: string | null;
-      district?: string | null;
-    };
-    treasurer?: {
+    coveragePeriod?: { startDate?: string | null; endDate?: string | null };
+    election?: { state?: string | null; district?: string | null };
+    candidate?: {
+      id?: string | null;
+      lastName?: string | null;
       firstName?: string | null;
       middleName?: string | null;
+      prefix?: string | null;
+      suffix?: string | null;
+    };
+    treasurer?: {
       lastName?: string | null;
+      firstName?: string | null;
+      middleName?: string | null;
       prefix?: string | null;
       suffix?: string | null;
     };
     dateSigned?: string | null;
-    [key: string]: unknown;
+    imageNumber?: string | number | null;
   };
-  committee?: {
-    id?: string;
-    name?: string;
-    address?: Record<string, string | null>;
-    changeOfAddress?: boolean;
-  };
-  summary?: F3ApiSection;
-  receipts?: F3ApiSection;
-  disbursements?: F3ApiSection;
-  cashSummary?: F3ApiSection;
-  financials?: {
-    sections?: F3ApiSection[];
-    [key: string]: unknown;
-  };
-};
+  summary?: { lines: unknown[] };
+  receipts?: { lines: unknown[] };
+  disbursements?: { lines: unknown[] };
+  cashSummary?: { lines: unknown[] };
+}
 
-/** API response envelope returned by the production F3 endpoint. */
-export interface F3ReportResponse {
+export interface F3ReportProps {
   data: F3ReportData;
 }
 
-type F3ApiLine = Record<string, unknown>;
-type F3ApiSection = {
-  id?: string;
-  title?: string;
-  subtitle?: string;
-  lines?: F3ApiLine[];
+const SECTION_TITLES: Record<string, string> = {
+  summary: 'Summary',
+  receipts: 'I. Receipts',
+  disbursements: 'II. Disbursements',
+  cashSummary: 'III. Cash Summary',
 };
-type F3Treasurer = NonNullable<NonNullable<F3ReportData['report']>['treasurer']>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-/**
- * Normalize the endpoint envelope once at the F3 boundary.
- * The backend contract is { data: { ...F3ReportData } }, while older callers
- * may still pass the inner object directly.
- */
-const unwrapF3Data = (input: F3ReportData | F3ReportResponse): F3ReportData => {
-  if (isRecord(input) && isRecord(input.data)) {
-    return input.data as F3ReportData;
-  }
-  return input as F3ReportData;
-};
-
-const stableLineId = (value: unknown): string =>
-  String(value ?? '').replace(/-order-\d+$/, '');
-
-const normalizeFinancialLine = (line: F3ApiLine): F3ApiLine => {
-  const lineId = stableLineId(line.lineId ?? line.id);
-  const definition = F3_LINE_DEFINITIONS[lineId];
+const normalizeF3Data = (data: F3ReportData): FinancialReportData => {
+  const raw = data as unknown as Record<string, unknown>;
+  const sections = Object.entries(SECTION_TITLES)
+    .map(([id, title]) => {
+      const source = raw[id];
+      const lines = isRecord(source) && Array.isArray(source.lines) ? source.lines : [];
+      return { id, title, lines };
+    })
+    .filter(section => section.lines.length > 0);
 
   return {
-    ...line,
-    lineId,
-    lineNumber: line.lineNumber ?? line.line_number ?? '',
-    lineDescription:
-      line.lineDescription ??
-      line.label ??
-      line.description ??
-      definition?.label ??
-      '',
-  };
-};
-
-const normalizeFinancialLines = (lines: unknown): F3ApiLine[] =>
-  Array.isArray(lines) ? lines.filter(isRecord).map(normalizeFinancialLine) : [];
-
-const section = (
-  id: string,
-  title: string,
-  source: unknown,
-  subtitle = '',
-): F3ApiSection => {
-  const lines = isRecord(source) ? source.lines : source;
-
-  return {
-    id,
-    title,
-    subtitle,
-    lines: normalizeFinancialLines(lines),
-  };
-};
-
-const displayValue = (value: unknown, fallback = '—'): string => {
-  if (value === null || value === undefined || value === '') return fallback;
-  return String(value);
-};
-
-const formatDate = (value: unknown): string => {
-  if (!value) return '—';
-  const text = String(value);
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  return match ? `${match[2]}/${match[3]}/${match[1]}` : text;
-};
-
-const formatTreasurerName = (treasurer?: F3Treasurer): string => {
-  if (!treasurer) return '—';
-
-  const parts = [
-    treasurer.prefix,
-    treasurer.firstName,
-    treasurer.middleName,
-    treasurer.lastName,
-    treasurer.suffix,
-  ]
-    .filter(value => value !== null && value !== undefined && value !== '')
-    .map(String);
-
-  return parts.length ? parts.join(' ') : '—';
-};
-
-const committeeColumns: ReportTableColumn[] = [
-  { key: 'number', label: '', align: 'center', width: '6%' },
-  { key: 'label', label: 'Description', align: 'left', width: '29%' },
-  { key: 'value', label: 'Value', align: 'left', width: '65%' },
-];
-
-const F3ReportHeader = ({ data }: { data: F3ReportData }) => {
-  const committee = data.committee;
-  const report = data.report;
-  const address = committee?.address;
-  const treasurer = report?.treasurer;
-
-  const addressLine1 = [address?.street1, address?.street2]
-    .filter(Boolean)
-    .map(String)
-    .join(', ');
-  const addressLine2 = [address?.city, address?.state, address?.zipCode]
-    .filter(Boolean)
-    .map(String)
-    .join(', ')
-    .replace(/, ([A-Z]{2}), /, ' $1 ');
-
-  const election =
-    report?.election?.state && report?.election?.district
-      ? `${report.election.state} - ${report.election.district}`
-      : displayValue(report?.election?.state ?? report?.election?.district);
-
-  const coveragePeriod = `${formatDate(report?.coveragePeriod?.from)} – ${formatDate(
-    report?.coveragePeriod?.through,
-  )}`;
-
-  // These numbers are FEC-style presentation numbers for the header only.
-  // They are intentionally not part of the API contract.
-  const rows: ReportTableRow[] = [
-    {
-      id: 'committee-name',
-      cells: { number: '1', label: 'Committee name:', value: displayValue(committee?.name) },
-    },
-    {
-      id: 'mailing-address',
-      cells: {
-        number: '',
-        label: 'Address:',
-        value: (
-          <>
-            <span className="block">{displayValue(addressLine1)}</span>
-            <span className="block">{displayValue(addressLine2)}</span>
-          </>
-        ),
-      },
-    },
-    {
-      id: 'committee-id',
-      cells: { number: '2', label: 'FEC Committee ID:', value: displayValue(committee?.id) },
-    },
-    {
-      id: 'amendment',
-      cells: {
-        number: '3',
-        label: 'Is This Report An Amendment:',
-        value: report?.amendmentIndicator === 'Y' ? 'Yes' : 'No',
-      },
-    },
-    {
-      id: 'report-type',
-      cells: {
-        number: '4',
-        label: 'Report Type:',
-        value: displayValue(report?.reportTypeDescription ?? report?.reportCode ?? report?.reportType),
-      },
-    },
-    {
-      id: 'coverage-period',
-      cells: { number: '5', label: 'Coverage Period:', value: coveragePeriod },
-    },
-    {
-      id: 'multicandidate-status',
-      cells: {
-        number: '',
-        label: 'Multicandidate Committee Status:',
-        value: displayValue(data.report?.['multicandidateStatus']),
-      },
-    },
-    {
-      id: 'treasurer',
-      cells: { number: '', label: 'Treasurer:', value: formatTreasurerName(treasurer) },
-    },
-    {
-      id: 'date-signed',
-      cells: { number: '', label: 'Date Signed:', value: formatDate(report?.dateSigned) },
-    },
-    {
-      id: 'filed-date',
-      cells: { number: '', label: 'Filed Date:', value: formatDate(report?.filedDate) },
-    },
-  ];
-
-  if (committee?.changeOfAddress) {
-    rows.push({
-      id: 'change-of-address',
-      cells: { number: '', label: 'Change of Address:', value: 'Yes' },
-    });
-  }
-
-  return (
-    <div className="mb-8">
-      <ReportTable
-        id="f3-committee-information"
-        title="Committee information"
-        columns={committeeColumns}
-        rows={rows}
-        collapsible={false}
-      />
-    </div>
-  );
-};
-
-const normalizeF3Data = (input: F3ReportData | F3ReportResponse): FinancialReportData => {
-  const source = unwrapF3Data(input);
-
-  if (Array.isArray(source.sections)) {
-    return {
-      metadata: source.metadata,
-      committee: source.committee
-        ? {
-            id: source.committee.id,
-            name: source.committee.name,
-            address: source.committee.address as Record<string, string> | undefined,
-          }
-        : undefined,
-      sections: source.sections.map(s => ({
-        ...s,
-        lines: s.lines.map(line =>
-          'lineId' in line
-            ? (normalizeFinancialLine(line as F3ApiLine) as typeof line)
-            : line,
-        ),
-      })),
-    };
-  }
-
-  const financialSections = source.financials?.sections ?? [];
-  const sections: F3ApiSection[] = [];
-
-  if (source.summary) {
-    sections.push(section('summary', 'Summary', source.summary));
-  }
-
-  if (source.receipts) {
-    sections.push(section('receipts', 'I. Receipts', source.receipts));
-  }
-
-  if (source.disbursements) {
-    sections.push(section('disbursements', 'II. Disbursements', source.disbursements));
-  }
-
-  if (source.cashSummary) {
-    sections.push(section('cashSummary', 'III. Cash Summary', source.cashSummary));
-  }
-
-  if (!sections.length && financialSections.length) {
-    sections.push(
-      ...financialSections.map(s => ({
-        id: s.id ?? '',
-        title: s.title ?? s.id ?? '',
-        subtitle: s.subtitle ?? '',
-        lines: normalizeFinancialLines(s.lines),
-      })),
-    );
-  }
-
-  const formType = source.form?.formType ?? source.form?.formName ?? 'F3';
-  const reportId = source.report?.reportId;
-
-  return {
-    metadata: {
-      formType,
-      reportId,
-      formTitle:
-        source.form?.formTitle ??
-        source.form?.formName ??
-        'Report of Receipts and Disbursements',
-      formSubTitle: source.form?.formSubTitle ?? 'For An Authorized Committee',
-    },
-    committee: source.committee
-      ? {
-          id: source.committee.id,
-          name: source.committee.name,
-          address: source.committee.address as Record<string, string> | undefined,
-        }
-      : undefined,
-    sections: sections
-      .filter(s => !!s.id && !!s.lines?.length)
-      .map(s => ({
-        id: s.id!,
-        title: s.title ?? s.id!,
-        subtitle: s.subtitle,
-        lines: s.lines as FinancialReportData['sections'][number]['lines'],
-      })),
+    metadata: data.metadata,
+    form: data.form,
+    committee: data.committee as unknown as FinancialReportData['committee'],
+    report: data.report,
+    sections: sections as FinancialReportData['sections'],
   };
 };
 
 export default function F3Report({ data }: F3ReportProps) {
-  const reportData = unwrapF3Data(data);
-  const normalized = normalizeF3Data(reportData);
-
   return (
-    <>
-      <F3ReportHeader data={reportData} />
+    <div className="slab slab--inline slab--neutral u-padding--left u-padding--right">
+      <ReportDetailsHeader data={data as unknown as ReportDetailsHeaderData} />
       <FinancialReportRenderer
-        data={normalized}
+        data={normalizeF3Data(data)}
         definitions={F3_LINE_DEFINITIONS}
-        formPrefix="f3-line-"
       />
-    </>
+    </div>
   );
 }

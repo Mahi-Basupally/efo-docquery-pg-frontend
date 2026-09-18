@@ -1,7 +1,8 @@
 'use client';
 
-import { Filing } from '@/lib/api';
+import type { Filing } from '../lib/api';
 import { FileText, Calendar, Hash, FileCheck, AlertCircle } from 'lucide-react';
+import { formatDate } from '@/lib/basicFormattingUtils';
 
 interface FilingsListProps {
   filings: Filing[];
@@ -41,16 +42,6 @@ export default function FilingsList({ filings, loading, comid }: FilingsListProp
       </div>
     );
   }
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
 
   const getFormBadgeColor = (form: string) => {
     const formColors: { [key: string]: string } = {

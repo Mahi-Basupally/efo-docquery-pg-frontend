@@ -68,12 +68,12 @@ export const scheduleEApi = {
     params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleEResponse> => {
     const queryParams = new URLSearchParams();
+    queryParams.set('lineNumber', lineNum);
     if (params.page !== undefined) queryParams.set('page', String(params.page));
     if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    const query = queryParams.toString();
     const response = await apiClient.get<ScheduleEResponse>(
-      `/reports/${repid}/schedules/SE/${lineNum}${query ? `?${query}` : ''}`
+      `/reports/${repid}/schedules/SE?${queryParams.toString()}`
     );
     return response.data;
   },
