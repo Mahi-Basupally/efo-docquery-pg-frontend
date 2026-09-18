@@ -14,12 +14,16 @@ export interface ReportTableRow {
 export interface ReportTableProps {
   id?: string; title: string; subtitle?: string; columns: ReportTableColumn[]; rows: ReportTableRow[];
   collapsible?: boolean; expanded?: boolean; onToggleExpanded?: () => void; defaultExpanded?: boolean; emptyMessage?: string;
+  // Overrides the table's own width (default '100%' of its container) -
+  // e.g. FinancialReportRenderer narrows its tables to '80%' without
+  // affecting every other form/schedule table that uses this component.
+  width?: string;
 }
 
 const cellPadding = '8px';
 const cellFontSize = '14px';
 
-export default function ReportTable({ id, title, subtitle, columns, rows, collapsible = true, expanded, onToggleExpanded, defaultExpanded = true, emptyMessage = 'No data available.' }: ReportTableProps) {
+export default function ReportTable({ id, title, subtitle, columns, rows, collapsible = true, expanded, onToggleExpanded, defaultExpanded = true, emptyMessage = 'No data available.', width = '100%' }: ReportTableProps) {
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
   const isControlled = expanded !== undefined;
   const isExpanded = isControlled ? expanded : internalExpanded;
@@ -28,9 +32,9 @@ export default function ReportTable({ id, title, subtitle, columns, rows, collap
 
   return (
     <div style={{ overflowX: 'auto', maxWidth: '100%', display: 'block' }}>
-      <table id={id} style={{ width: '100%', fontSize: '16px' }} className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer">
+      <table id={id} style={{ width, fontSize: '16px' }} className="data-table data-table--heading-borders data-table--entity u-margin--top dataTable no-footer">
         <thead>
-          <tr style={{ textAlign: 'left', backgroundColor: '#aeb0b5' }}>
+          <tr style={{ textAlign: 'left' }}>
             <th colSpan={columns.length}>
               <span style={{ whiteSpace: 'pre-line', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
                 {collapsible && <button onClick={toggle} className="p-1 hover:bg-gray-200 rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-expanded={isExpanded} aria-label={isExpanded ? 'Collapse section' : 'Expand section'}>
@@ -40,8 +44,8 @@ export default function ReportTable({ id, title, subtitle, columns, rows, collap
               </span>
             </th>
           </tr>
-          {subtitle && <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}><th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: cellPadding, fontSize: cellFontSize }}>{subtitle}</th></tr>}
-          <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9' }}>
+          {subtitle && <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9', display: isExpanded ? '' : 'none' }}><th colSpan={columns.length} style={{ whiteSpace: 'pre-line', textAlign: 'left', fontStyle: 'italic', padding: cellPadding, fontSize: cellFontSize }}>{subtitle}</th></tr>}
+          <tr style={{ textAlign: 'left', backgroundColor: '#d6d7d9', display: isExpanded ? '' : 'none' }}>
             {columns.map(col => <th key={col.key} style={{ whiteSpace: 'pre-line', width: col.width, textAlign: alignOf(col.align), padding: cellPadding, fontSize: cellFontSize }}>{col.label}</th>)}
           </tr>
         </thead>

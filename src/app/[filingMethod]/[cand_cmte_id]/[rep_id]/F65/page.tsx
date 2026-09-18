@@ -1,0 +1,149 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import Breadcrumbs from '@/components/Breadcrumbs';
+import ScheduleSidenav from '@/components/SideNav';
+import { reportsApi, BasicInfo } from '@/lib/api/reports';
+import F65Renderer from '@/components/schedules/f65/f65_rendering';
+import FormCommitteeBasicInfo from '@/components/forms/FormCommitteeBasicInfo';
+import { getFormTypeLabel } from '@/lib/formTypeUtils';
+
+export default function F65Page() {
+  const params = useParams();
+  const committeeId = params.cand_cmte_id as string;
+  const repId = params.rep_id as string;
+  const filingMethod = params.filingMethod as string;
+
+  const [report, setReport] = useState<BasicInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [committeeMismatch, setCommitteeMismatch] = useState(false);
+  const [mismatchEntityId, setMismatchEntityId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchReport = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setCommitteeMismatch(false);
+        setMismatchEntityId(null);
+        const response = await reportsApi.getBasicInfo(repId);
+
+        // Guard against a report ID being viewed under the wrong
+        // committee's URL (e.g. a stale link, or a typo'd cand_cmte_id).
+        if (committeeId && response.data.committeeId && response.data.committeeId !== committeeId) {
+          setCommitteeMismatch(true);
+          setMismatchEntityId(response.data.committeeId);
+          return;
+        }
+
+        setReport(response.data);
+      } catch (err) {
+        console.error('Error fetching report:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load report');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (repId) {
+      fetchReport();
+    }
+  }, [repId, committeeId]);
+
+  useEffect(() => {
+    if (report?.committeeName) {
+      document.title = `${report.committeeName} - EFO DocQuery`;
+    } else {
+      document.title = 'EFO DocQuery';
+    }
+
+    return () => {
+      document.title = 'EFO DocQuery';
+    };
+  }, [report]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (committeeMismatch) {
+    return (
+      <div style={{ padding: '2rem' }}>
+        <div className="message message--error">
+          <h2 className="message__title">Missmatch </h2>
+          <p>Report FEC-{repId} does not belong to committee/candidate {committeeId}.</p>
+          <div className="message--alert__bottom">
+            <ul className="list--buttons">
+              <li>
+                <Link className="button--standard" href={mismatchEntityId ? `/${filingMethod}/${mismatchEntityId}` : `/${filingMethod}`}>
+                  Go to the correct committee
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !report) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800">{error || 'Report not found'}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const breadcrumbItems = [
+    { label: 'Home', href: 'https://www.fec.gov' },
+    { label: 'Campaign finance data', href: 'https://www.fec.gov/data/' },
+    { label: 'Committee profile', href: `https://www.fec.gov/data/committee/${committeeId}/?tab=about-committee` },
+    { label: committeeId, href: `/${filingMethod}/${committeeId}` },
+    { label: 'Report Summary', href: `/${filingMethod}/${committeeId}/${repId}` },
+    { label: 'Form 65', href: '' },
+  ];
+
+  return (
+    <>
+      <Breadcrumbs items={breadcrumbItems} />
+      <div className="u-padding--left u-padding--right tab-interface" style={{ overflow: 'visible' }}>
+        <FormCommitteeBasicInfo name={report.committeeName} id={report.committeeId} reportId={report.reportId} reportType={report.reportType} />
+
+        <div className="data-container__wrapper">
+          <ScheduleSidenav reportId={repId} />
+
+          <section id="section-1" className="tab-content" role="tabpanel">
+            <h2 id="section-1-heading">
+              {getFormTypeLabel(report?.formType)} (FEC-{report.reportId})
+            </h2>
+
+            <div className="slab slab--inline slab--neutral u-padding--left u-padding--right">
+              <div className="row content__section">
+                <div className="entity__figure row">
+                  <div className="heading--section heading--with-action">
+                    <h3 className="entity__title">ITEMIZED CONTRIBUTIONS - Form 65</h3>
+                  </div>
+
+                  <F65Renderer reportId={repId} perPage={50} />
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <footer className="mt-16 bg-white border-t border-gray-200"></footer>
+      </div>
+    </>
+  );
+}

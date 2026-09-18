@@ -54,12 +54,12 @@ export const scheduleDApi = {
     params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleDResponse> => {
     const queryParams = new URLSearchParams();
+    queryParams.set('lineNumber', lineNum);
     if (params.page !== undefined) queryParams.set('page', String(params.page));
     if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    const query = queryParams.toString();
     const response = await apiClient.get<ScheduleDResponse>(
-      `/reports/${repid}/schedules/SD/${lineNum}${query ? `?${query}` : ''}`
+      `/reports/${repid}/schedules/SD?${queryParams.toString()}`
     );
     return response.data;
   },

@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { scheduleApi, Schedule, SchedulesResponse } from '@/lib/api/schedules';
-import { getFormSummarySections } from '@/lib/formSummarySections';
-import { useRouter, usePathname } from 'next/navigation';
+import { getFormSummarySections } from '@/lib/formSideNavSections';
+import { useRouter, usePathname, useParams } from 'next/navigation';
 
 const SUMMARY_TAB = 'SUMMARY';
 
@@ -25,11 +25,12 @@ const HIDDEN_SCHEDULES = new Set(['F94']);
 // FEC's own CSS has no complete sticky-sidebar rule to reuse (only a bare
 // .sidebar__inside-sticky-side padding/background helper, no position, and
 // no JS scroll-listener for it either). The .docquery-sidenav class
-// (globals.css) applies position:sticky only at the same >=40em breakpoint
-// where .side-nav-alt itself switches to table-cell (sitting beside the
-// content column) - below that the nav is a normal stacked block above the
-// content, so sticky there would just pin it over the page while scrolling
-// on mobile. Kept as a CSS class (not inline styles) because inline styles
+// (globals.css) applies position:sticky only once .data-container__wrapper
+// actually puts this nav beside the content column (a >=53.75em breakpoint,
+// not .side-nav-alt's own >=40em table-cell switch - see globals.css for
+// why those differ) - below that the nav is a normal stacked block above
+// the content, so sticky there would just pin it over the page while
+// scrolling. Kept as a CSS class (not inline styles) because inline styles
 // can't express the media query.
 const SIDENAV_CLASS_NAME = 'sidebar side-nav-alt docquery-sidenav';
 
@@ -39,7 +40,7 @@ const SIDENAV_CLASS_NAME = 'sidebar side-nav-alt docquery-sidenav';
 // .offset().top` on page load whenever the URL has a hash, before React
 // has fetched/rendered the summary page's sections - the selector matches
 // nothing yet, .offset() returns undefined on the empty jQuery set, and
-// .top throws. SummaryDetailPage.tsx reads this key itself once its own
+// .top throws. ReportSummaryPage.tsx reads this key itself once its own
 // data has actually rendered, instead.
 export const SUMMARY_SCROLL_TARGET_KEY = 'docquery:scrollToSection';
 
@@ -50,6 +51,8 @@ interface ScheduleSidenavProps {
 const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const params = useParams();
+  const filingMethod = params.filingMethod as string;
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [committeeId, setCommitteeId] = useState<string>('');
   const [formType, setFormType] = useState<string | null>(null);
@@ -89,12 +92,12 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
   }, [reportId]);
 
   const summarySections = getFormSummarySections(formType);
-  const summaryPageUrl = `/forms/${committeeId}/${reportId}`;
+  const summaryPageUrl = `/${filingMethod}/${committeeId}/${reportId}`;
   const onSummaryPage = pathname === summaryPageUrl;
 
   // Keep the expanded group in sync with whichever page is actually
   // showing: if the current URL is a schedule's own page (e.g.
-  // /forms/{cmte}/{repid}/SA/11AI), expand that schedule; otherwise fall
+  // /{filingMethod}/{cmte}/{repid}/SA/11AI), expand that schedule; otherwise fall
   // back to SUMMARY (if this form type has one) or the first schedule.
   // Re-derived locally (no refetch) whenever the URL or the loaded data
   // changes.
@@ -135,7 +138,7 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
     }
 
     // Navigate WITHOUT a #hash (see SUMMARY_SCROLL_TARGET_KEY above) and
-    // let SummaryDetailPage.tsx scroll to it once its data has rendered.
+    // let ReportSummaryPage.tsx scroll to it once its data has rendered.
     sessionStorage.setItem(SUMMARY_SCROLL_TARGET_KEY, sectionId);
     router.push(summaryPageUrl);
   };
@@ -155,8 +158,8 @@ const ScheduleSidenav: React.FC<ScheduleSidenavProps> = ({ reportId }) => {
   // [line_num] segment) - see SCHEDULES_WITHOUT_REQUIRED_LINE_NUMBER above.
   const getSubLinkUrl = (schedule: string, lineNum: string) =>
     SCHEDULES_WITHOUT_REQUIRED_LINE_NUMBER.has(schedule.toUpperCase())
-      ? `/forms/${committeeId}/${reportId}/${schedule}`
-      : `/forms/${committeeId}/${reportId}/${schedule}/${lineNum}`;
+      ? `/${filingMethod}/${committeeId}/${reportId}/${schedule}`
+      : `/${filingMethod}/${committeeId}/${reportId}/${schedule}/${lineNum}`;
 
   const handleSubLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, schedule: string, lineNum: string) => {
     e.preventDefault();

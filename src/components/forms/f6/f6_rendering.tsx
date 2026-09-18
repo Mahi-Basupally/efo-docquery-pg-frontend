@@ -9,5 +9,9 @@ export interface F6ReportProps {
 // F6 is a single Form Details section (no financial lines), so there's
 // nothing per-line to define.
 export default function F6Report({ data }: F6ReportProps) {
-  return <FinancialReportRenderer data={data} definitions={{}} formPrefix="f6-line-" />;
+  return (
+    <div className="slab slab--inline slab--neutral u-padding--left u-padding--right">
+      <FinancialReportRenderer data={data} definitions={{}} />
+    </div>
+  );
 }

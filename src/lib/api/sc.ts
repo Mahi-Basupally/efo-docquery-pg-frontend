@@ -60,12 +60,12 @@ export const scheduleCApi = {
     params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleCResponse> => {
     const queryParams = new URLSearchParams();
+    queryParams.set('lineNumber', lineNum);
     if (params.page !== undefined) queryParams.set('page', String(params.page));
     if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    const query = queryParams.toString();
     const response = await apiClient.get<ScheduleCResponse>(
-      `/reports/${repid}/schedules/SC/${lineNum}${query ? `?${query}` : ''}`
+      `/reports/${repid}/schedules/SC?${queryParams.toString()}`
     );
     return response.data;
   },

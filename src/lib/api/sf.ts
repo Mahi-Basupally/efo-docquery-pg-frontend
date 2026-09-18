@@ -66,12 +66,12 @@ export const scheduleFApi = {
     params: { page?: number; perPage?: number } = {}
   ): Promise<ScheduleFResponse> => {
     const queryParams = new URLSearchParams();
+    queryParams.set('lineNumber', lineNum);
     if (params.page !== undefined) queryParams.set('page', String(params.page));
     if (params.perPage !== undefined) queryParams.set('perPage', String(params.perPage));
 
-    const query = queryParams.toString();
     const response = await apiClient.get<ScheduleFResponse>(
-      `/reports/${repid}/schedules/SF/${lineNum}${query ? `?${query}` : ''}`
+      `/reports/${repid}/schedules/SF?${queryParams.toString()}`
     );
     return response.data;
   },
